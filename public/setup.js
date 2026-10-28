@@ -85,7 +85,7 @@ export function createSetup({ send, toast, onDirtyChange }) {
           const dv = d.dives[r] || { code: "", dd: "" };
           const code = dv.code || "";
           const dd = typeof dv.dd === "number" && dv.dd ? dv.dd.toFixed(1) : dv.dd || "";
-          return `<td class="dive-cell"><div class="pair">
+          return `<td class="dive-cell" data-label="Round ${r + 1}"><div class="pair">
               <input class="code ${validCode(code) ? "" : "invalid"}" data-i="${i}" data-r="${r}" data-f="code" value="${esc(code)}" placeholder="dive" maxlength="5" autocapitalize="characters" autocomplete="off" aria-label="${esc(d.name)} round ${r + 1} dive">
               <input class="ddin ${validDD(dd) ? "" : "invalid"}" data-i="${i}" data-r="${r}" data-f="dd" value="${esc(dd)}" placeholder="DD" inputmode="decimal" maxlength="4" autocomplete="off" aria-label="${esc(d.name)} round ${r + 1} DD">
             </div><div class="desc" data-desc="${i}:${r}">${esc(describeDive(code))}</div></td>`;
