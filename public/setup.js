@@ -1,6 +1,6 @@
 // "Competition setup" tab: event details, diver list editor, CSV import/export.
 // Edits are kept in a local draft and sent to the meet when the referee saves.
-import { $, esc } from "/common.js";
+import { $, confirmDialog, esc } from "/common.js";
 import { describeDive } from "/dives.js";
 import { diversToCsv, parseImport } from "/importer.js";
 
@@ -134,7 +134,7 @@ export function createSetup({ send, toast, onDirtyChange }) {
     setDirty(true);
   });
 
-  $("#diversTable").addEventListener("click", (e) => {
+  $("#diversTable").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-act]");
     if (!b) return;
     const i = Number(b.dataset.i);
@@ -144,7 +144,8 @@ export function createSetup({ send, toast, onDirtyChange }) {
     else if (b.dataset.act === "remove") {
       const d = list[i];
       const scored = d.id ? scoredCount(d.id) : 0;
-      if (!confirm(scored ? `${d.name} already has ${scored} scored dive(s). Remove them and their scores?` : `Remove ${d.name || "this diver"}?`)) return;
+      const msg = scored ? `${d.name} already has ${scored} scored dive(s). Remove them and their scores?` : `Remove ${d.name || "this diver"}?`;
+      if (!(await confirmDialog(msg, { ok: "Remove", danger: true }))) return;
       list.splice(i, 1);
     } else return;
     setDirty(true);
@@ -163,8 +164,8 @@ export function createSetup({ send, toast, onDirtyChange }) {
     $("#diversTable tbody tr:last-child")?.scrollIntoView({ block: "nearest" });
   });
 
-  $("#drawBtn").addEventListener("click", () => {
-    if (draft.divers.length < 2 || !confirm("Randomly draw a new diving order?")) return;
+  $("#drawBtn").addEventListener("click", async () => {
+    if (draft.divers.length < 2 || !(await confirmDialog("Randomly draw a new diving order?", { ok: "Draw" }))) return;
     const a = draft.divers;
     for (let i = a.length - 1; i > 0; i--) {
       const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
@@ -174,8 +175,8 @@ export function createSetup({ send, toast, onDirtyChange }) {
     renderTable();
   });
 
-  $("#clearBtn").addEventListener("click", () => {
-    if (!draft.divers.length || !confirm("Remove ALL divers (and any scores they have)?")) return;
+  $("#clearBtn").addEventListener("click", async () => {
+    if (!draft.divers.length || !(await confirmDialog("Remove ALL divers (and any scores they have)?", { ok: "Remove all", danger: true }))) return;
     draft.divers = [];
     setDirty(true);
     renderTable();
@@ -265,10 +266,10 @@ export function createSetup({ send, toast, onDirtyChange }) {
     return out;
   }
 
-  $("#saveBtn").addEventListener("click", () => {
+  $("#saveBtn").addEventListener("click", async () => {
     const errs = problems();
     if (errs.length) return toast(errs[0] + (errs.length > 1 ? ` (+${errs.length - 1} more)` : ""), 5000);
-    if (draft.judges !== latest.judges && latest.current?.phase === "scoring" && !confirm("Changing the number of judges clears scores for the dive being judged. Continue?")) return;
+    if (draft.judges !== latest.judges && latest.current?.phase === "scoring" && !(await confirmDialog("Changing the number of judges clears scores for the dive being judged. Continue?", { ok: "Continue", danger: true }))) return;
     const ref = Date.now();
     const ok = send({
       type: "setup",
@@ -290,8 +291,8 @@ export function createSetup({ send, toast, onDirtyChange }) {
     setDirty(true);
   });
 
-  $("#discardBtn").addEventListener("click", () => {
-    if (!confirm("Discard your unsaved setup changes?")) return;
+  $("#discardBtn").addEventListener("click", async () => {
+    if (!(await confirmDialog("Discard your unsaved setup changes?", { ok: "Discard", danger: true }))) return;
     draft = fromState(latest);
     setDirty(false);
     renderDetails();
