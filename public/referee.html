@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a2b">
+<title>Referee Control</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Home"><img src="/icon.svg" alt="" width="26" height="26"></a>
+  <span class="title" id="meetName">Loading…</span>
+  <span class="pill mono" id="codePill"></span>
+  <span class="pill"><span class="dot" id="connDot"></span><span id="connText">…</span></span>
+  <a class="btn small" id="liveLink" target="_blank" rel="noopener">Open scoreboard ↗</a>
+</header>
+
+<nav class="tabs" id="tabs" hidden>
+  <button data-tab="setup">Competition setup<span class="dirty-dot" id="dirtyDot" hidden></span></button>
+  <button data-tab="run">Live control</button>
+</nav>
+
+<main class="wrap" id="app" hidden>
+  <!-- ================= SETUP ================= -->
+  <div id="tab-setup" hidden>
+    <section class="card">
+      <h2>Competition</h2>
+      <p class="lead">Event details shown on the scoreboard and judge pads.</p>
+      <div class="row">
+        <div class="field" style="flex:3 1 260px"><label for="sName">Competition / event name</label><input id="sName" maxlength="80" placeholder="Women's 3m Springboard Final"></div>
+        <div class="field" style="flex:2 1 200px"><label for="sEvent">Board / height</label><input id="sEvent" maxlength="60" list="eventList" placeholder="3m Springboard">
+          <datalist id="eventList"><option>1m Springboard</option><option>3m Springboard</option><option>5m Platform</option><option>7.5m Platform</option><option>10m Platform</option></datalist></div>
+        <div class="field" style="flex:1 1 110px"><label for="sJudges">Judges</label><select id="sJudges"><option>3</option><option>5</option><option>7</option></select></div>
+        <div class="field" style="flex:1 1 110px"><label for="sRounds">Rounds (dives)</label><input id="sRounds" type="number" min="1" max="12" inputmode="numeric"></div>
+      </div>
+      <label class="check"><input id="sAuto" type="checkbox"> Show scores as soon as all judges are in (otherwise the referee presses Reveal)</label>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div><h2>Divers <span class="muted" id="diverCount"></span></h2>
+          <p class="lead" style="margin:0">Listed in diving order. Enter each diver's dive list (dive number + DD) per round.</p></div>
+        <div class="toolbar">
+          <button class="btn" id="importBtn">⇪ Import…</button>
+          <button class="btn" id="exportBtn">Export CSV</button>
+          <button class="btn" id="drawBtn" title="Random draw for the diving order">Draw order</button>
+          <button class="btn danger" id="clearBtn">Clear all</button>
+        </div>
+      </div>
+      <div class="order-wrap"><table class="divers-table" id="diversTable"></table></div>
+      <form id="addForm" class="add-row">
+        <input id="addName" placeholder="Diver name" maxlength="60" aria-label="New diver name" autocomplete="off">
+        <input id="addTeam" placeholder="Team / club" maxlength="40" aria-label="New diver team" autocomplete="off">
+        <button class="btn primary">+ Add diver</button>
+      </form>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Share</h2>
+      <div class="share-slot"></div>
+    </section>
+
+    <div class="savebar" id="savebar">
+      <span id="saveStatus" class="muted">All changes saved</span>
+      <button class="btn" id="discardBtn" hidden>Discard</button>
+      <button class="btn good" id="saveBtn" disabled>Save setup</button>
+    </div>
+  </div>
+
+  <!-- ================= LIVE CONTROL ================= -->
+  <div id="tab-run" hidden>
+    <div class="ref-grid">
+      <section class="card" id="currentCard"></section>
+      <section class="card">
+        <h2>Running order</h2>
+        <p class="lead">Click any dive to call it (or to review a scored one).</p>
+        <div class="order-wrap"><table class="order" id="order"></table></div>
+        <div class="row" style="margin-top:12px"><button class="btn small" id="csvBtn">Download results (CSV)</button></div>
+      </section>
+    </div>
+    <section class="card" style="margin-top:16px">
+      <h2>Share</h2>
+      <div class="share-slot"></div>
+    </section>
+  </div>
+</main>
+
+<main class="wrap hidden" id="noKey" style="max-width:520px">
+  <section class="card" style="margin-top:24px">
+    <h2>Referee access</h2>
+    <p class="lead">This device doesn't have the referee key for this meet. Open the referee link from the device that created it, or paste the key.</p>
+    <form id="keyForm"><div class="field"><label for="keyInput">Referee key</label><input id="keyInput" class="mono" autocomplete="off"></div>
+      <button class="btn primary">Continue</button><p class="error" id="keyErr"></p></form>
+  </section>
+</main>
+
+<dialog id="importDlg" class="wide">
+  <h2 style="margin:0 0 4px">Import divers</h2>
+  <p class="muted" style="margin:0 0 12px">Upload a CSV exported from Excel / Google Sheets, or copy the rows in the spreadsheet and paste them below.
+    Columns: <span class="mono">Name, Team, Dive 1, DD 1, Dive 2, DD 2…</span> — a header row is optional.
+    <a href="#" id="templateLink">Download a template</a>.</p>
+  <label class="drop" id="dropZone">
+    <input type="file" id="importFile" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" hidden>
+    <b>Choose a CSV file</b> or drop it here
+  </label>
+  <textarea id="importText" spellcheck="false" placeholder="…or paste here, e.g.
+Ana Silva	BRA	105B	2.4	203C	2.0
+Mia Chen	CHN	107B	3.1	205B	3.0"></textarea>
+  <div id="importPreview" class="import-preview"></div>
+  <div class="row" style="align-items:center;margin-top:12px">
+    <label class="check" style="flex:0 1 auto"><input type="radio" name="importMode" value="append" checked> Add to current list</label>
+    <label class="check" style="flex:0 1 auto"><input type="radio" name="importMode" value="replace"> Replace current list</label>
+    <span style="flex:1 1 0"></span>
+    <button class="btn" id="importCancel" type="button" style="flex:0 0 auto">Cancel</button>
+    <button class="btn primary" id="importGo" type="button" style="flex:0 0 auto" disabled>Import</button>
+  </div>
+</dialog>
+
+<dialog id="scoreDlg">
+  <h2 style="margin:0" id="dlgTitle">Set score</h2>
+  <p class="muted" style="margin:4px 0 0">Overrides what the judge entered.</p>
+  <div class="score-grid" id="dlgGrid"></div>
+  <div class="row"><button class="btn danger" id="dlgClear">Clear score</button><button class="btn" id="dlgCancel">Cancel</button></div>
+</dialog>
+<div class="toast hidden" id="toast" role="alert"></div>
+<script type="module" src="/referee.js"></script>
+</body>
+</html>

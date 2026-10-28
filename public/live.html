@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a2b">
+<title>Live Scoreboard</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Home"><img src="/icon.svg" alt="" width="26" height="26"></a>
+  <span class="title" id="meetName">Loading…</span>
+  <span class="pill" id="roundPill" hidden></span>
+  <span class="pill"><span class="dot" id="connDot"></span><span id="connText">…</span></span>
+  <button class="btn small" id="fsBtn" title="Full screen">⛶ Full screen</button>
+</header>
+<main class="live-grid">
+  <section class="stage" id="stage" aria-live="polite"></section>
+  <aside class="board">
+    <h3>Standings</h3>
+    <table class="standings"><tbody id="standings"></tbody></table>
+  </aside>
+</main>
+<script type="module" src="/live.js"></script>
+</body>
+</html>

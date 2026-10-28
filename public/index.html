@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a2b">
+<title>Pool Diving Scorer</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26"> Pool Diving Scorer</a>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <h1>Live scoring for springboard &amp; platform diving</h1>
+    <p>Judges score from a phone or tablet, the audience sees results the moment the panel is in. 3, 5 or 7 judge panels, World Aquatics scoring.</p>
+  </section>
+
+  <div class="grid3">
+    <section class="card">
+      <h2>Judge</h2>
+      <p class="lead">Open your scoring pad.</p>
+      <form id="judgeForm">
+        <div class="field"><label for="jCode">Meet code</label><input id="jCode" class="mono" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="ABC123" required></div>
+        <button class="btn primary" style="width:100%">Open scoring pad</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Watch</h2>
+      <p class="lead">Live scoreboard for the audience or a big screen.</p>
+      <form id="watchForm">
+        <div class="field"><label for="wCode">Meet code</label><input id="wCode" class="mono" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="ABC123" required></div>
+        <button class="btn primary" style="width:100%">Open scoreboard</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Run a meet</h2>
+      <p class="lead">Set up a competition, then add or import the divers.</p>
+      <form id="createForm">
+        <div class="field"><label for="cName">Competition / event name</label><input id="cName" placeholder="Women's 3m Springboard Final" required maxlength="80"></div>
+        <div class="field"><label for="cEvent">Board / height</label><input id="cEvent" list="eventList" placeholder="3m Springboard" maxlength="60">
+          <datalist id="eventList"><option>1m Springboard</option><option>3m Springboard</option><option>5m Platform</option><option>7.5m Platform</option><option>10m Platform</option></datalist></div>
+        <div class="row">
+          <div class="field"><label for="cJudges">Judges</label>
+            <select id="cJudges"><option>3</option><option selected>5</option><option>7</option></select></div>
+          <div class="field"><label for="cRounds">Rounds</label><input id="cRounds" type="number" min="1" max="12" value="5"></div>
+        </div>
+        <div class="field"><label class="check"><input id="cAuto" type="checkbox" checked> Show scores as soon as all judges are in</label></div>
+        <button class="btn good" style="width:100%">Create competition →</button>
+        <p class="error" id="createErr"></p>
+      </form>
+    </section>
+  </div>
+
+  <section class="card" id="myMeets" style="margin-top:16px" hidden>
+    <h2>Meets you run on this device</h2>
+    <ul class="meets-list" id="myMeetsList"></ul>
+  </section>
+</main>
+<script type="module" src="/home.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+name = "pool-diving-scorer"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+
+[[durable_objects.bindings]]
+name = "MEET"
+class_name = "Meet"
+
+# SQLite-backed Durable Objects are available on the Workers Free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Meet"]
+
+[observability]
+enabled = true
