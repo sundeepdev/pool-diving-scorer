@@ -1,4 +1,4 @@
-import { $, api, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
+import { $, api, confirmDialog, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
 import { describeDive } from "/dives.js";
 
 let code = meetCodeFromUrl();
@@ -103,8 +103,8 @@ $("#joinForm").addEventListener("submit", async (e) => {
   }
 });
 
-$("#leaveBtn").addEventListener("click", () => {
-  if (!confirm("Leave this judge seat?")) return;
+$("#leaveBtn").addEventListener("click", async () => {
+  if (!(await confirmDialog("Leave this judge seat?", { ok: "Leave", danger: true }))) return;
   store.remove(`judge:${code}`);
   location.href = `/judge?meet=${code}`;
 });
@@ -174,7 +174,7 @@ $("#sendBtn").addEventListener("click", send);
 // Keyboard: digits, "10" (type 1 then 0), "." or "h" for half, Enter to send, Esc/Backspace to clear.
 let lastKey = { key: null, at: 0 };
 document.addEventListener("keydown", (e) => {
-  if ($("#pad").classList.contains("hidden") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if ($("#pad").classList.contains("hidden") || e.target.closest("dialog") || e.metaKey || e.ctrlKey || e.altKey) return;
   const now = Date.now();
   if (/^[0-9]$/.test(e.key)) {
     if (e.key === "0" && lastKey.key === "1" && now - lastKey.at < 800 && whole === 1) pick(10);

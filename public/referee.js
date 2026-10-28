@@ -1,4 +1,4 @@
-import { $, $$, api, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
+import { $, $$, api, confirmDialog, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
 import { describeDive } from "/dives.js";
 import { createSetup } from "/setup.js";
 
@@ -165,12 +165,12 @@ function renderCurrent() {
     </div>`;
 }
 
-$("#currentCard").addEventListener("click", (e) => {
+$("#currentCard").addEventListener("click", async (e) => {
   const go = e.target.closest("[data-goto]");
   if (go) return showTab(go.dataset.goto);
   const act = e.target.closest("[data-act]")?.dataset.act;
-  if (act === "failed" && !confirm("Score this as a failed dive (0 points)?")) return;
-  if (act === "next" && state.current?.phase === "scoring" && !confirm("Current dive hasn't been revealed. Move on anyway?")) return;
+  if (act === "failed" && !(await confirmDialog("Score this as a failed dive (0 points)?", { ok: "Failed dive", danger: true }))) return;
+  if (act === "next" && state.current?.phase === "scoring" && !(await confirmDialog("Current dive hasn't been revealed. Move on anyway?", { ok: "Move on" }))) return;
   if (act) return send({ type: act });
   const tile = e.target.closest("[data-judge]");
   if (tile) openScoreDialog(Number(tile.dataset.judge));
@@ -229,11 +229,11 @@ function renderOrder() {
   $("#order").innerHTML = head + (rows || `<tr><td class="muted" colspan="99">No divers yet.</td></tr>`);
 }
 
-$("#order").addEventListener("click", (e) => {
+$("#order").addEventListener("click", async (e) => {
   const cell = e.target.closest("[data-diver]");
   if (!cell) return;
   const c = state.current;
-  if (c && c.phase === "scoring" && c.scores.some((v) => v !== null) && !confirm("Scores for the current dive haven't been revealed. Switch anyway?")) return;
+  if (c && c.phase === "scoring" && c.scores.some((v) => v !== null) && !(await confirmDialog("Scores for the current dive haven't been revealed. Switch anyway?", { ok: "Switch" }))) return;
   send({ type: "call", diverId: cell.dataset.diver, round: Number(cell.dataset.round) });
 });
 

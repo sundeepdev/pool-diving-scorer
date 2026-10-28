@@ -38,6 +38,25 @@ export const store = {
   },
 };
 
+// In-page replacement for window.confirm(). In-app browsers (links opened from
+// chat apps) and embedded webviews often suppress native dialogs, so confirm()
+// returns false without showing anything and the action silently does nothing.
+export function confirmDialog(message, { ok = "OK", danger = false } = {}) {
+  const dlg = document.createElement("dialog");
+  dlg.innerHTML = `<form method="dialog">
+    <p style="margin:0 0 16px;font-size:17px">${esc(message)}</p>
+    <div class="row"><button class="btn" value="cancel">Cancel</button><button class="btn ${danger ? "danger" : "primary"}" value="ok">${esc(ok)}</button></div>
+  </form>`;
+  document.body.append(dlg);
+  return new Promise((resolve) => {
+    dlg.addEventListener("close", () => {
+      dlg.remove();
+      resolve(dlg.returnValue === "ok");
+    });
+    dlg.showModal();
+  });
+}
+
 export async function api(path, body) {
   const res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {});
   const data = await res.json().catch(() => ({}));

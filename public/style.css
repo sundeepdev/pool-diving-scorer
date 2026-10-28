@@ -52,7 +52,7 @@ button { cursor: pointer; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); }
 .hidden { display: none !important; }
-.wrap { max-width: 1200px; margin: 0 auto; padding: 16px; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); }
 
 /* ---------- generic controls ---------- */
 .btn {
@@ -108,7 +108,8 @@ textarea { min-height: 160px; font-family: var(--mono); font-size: 14px; resize:
 
 .topbar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg-2);
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--line); background: var(--bg-2);
 }
 .topbar .title { font-weight: 800; font-size: 18px; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-weight: 800; }
@@ -125,12 +126,18 @@ textarea { min-height: 160px; font-family: var(--mono); font-size: 14px; resize:
 /* ---------- judge pad ---------- */
 body.judge { height: 100dvh; overflow: hidden; }
 .pad-app { display: flex; flex-direction: column; height: 100dvh; }
-.pad-app .topbar { flex-wrap: nowrap; padding: 10px 12px; gap: 8px; }
+.pad-app .topbar {
+  flex-wrap: nowrap; gap: 8px;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+}
 .pad-app .topbar .title { flex: 1 1 0; font-size: 16px; }
+/* On the narrowest phones the status dot alone says "live", leaving room for the meet name. */
+@media (max-width: 380px) { .pad-app #connText { display: none; } }
 .pad-main {
   flex: 1; min-height: 0;
-  display: grid; gap: 12px; padding: 12px;
-  grid-template-rows: auto auto 1fr auto;
+  display: grid; gap: 12px;
+  padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 .dive-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -153,7 +160,7 @@ body.judge { height: 100dvh; overflow: hidden; }
 .keypad {
   display: grid; gap: 10px; min-height: 0;
   grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(3, minmax(64px, 1fr));
+  grid-template-rows: repeat(3, minmax(44px, 1fr));
 }
 .key {
   border: 2px solid var(--line); border-radius: 16px;
@@ -176,6 +183,7 @@ body.judge { height: 100dvh; overflow: hidden; }
 .pad-wait {
   display: grid; place-items: center; text-align: center; color: var(--muted);
   border: 2px dashed var(--line); border-radius: var(--radius); padding: 24px;
+  min-height: 0; overflow: auto;
 }
 .pad-wait h2 { color: var(--text); margin: 0 0 6px; }
 .banner { padding: 8px 16px; font-weight: 700; text-align: center; }
@@ -189,16 +197,44 @@ body.judge { height: 100dvh; overflow: hidden; }
   .pad-main .keypad, .pad-main .pad-wait { grid-column: 2; grid-row: 1 / 3; }
   .pad-main .send { grid-column: 1 / 3; grid-row: 3; }
 }
+/* Short screens (small phones, or any phone held sideways): tighten everything so
+   the whole pad, including SEND, fits without scrolling. */
+@media (max-height: 700px) {
+  .pad-main { gap: 8px; padding-top: 8px; }
+  .dive-card { padding: 8px 12px; }
+  .dive-card .who { font-size: 20px; }
+  .dive-card .meta { font-size: 14px; gap: 2px 10px; margin-top: 2px; }
+  .readout { min-height: 64px; padding: 6px 14px; }
+  .readout .value { font-size: clamp(40px, 11vw, 60px); }
+  .readout .status { font-size: 15px; }
+  .keypad { gap: 8px; }
+  .send { min-height: 60px; }
+  .pad-wait { padding: 12px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .pad-app .topbar { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 6px; }
+  .pad-main { grid-template-columns: minmax(200px, 40%) 1fr; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .pad-main .dive-card { grid-column: 1; grid-row: 1; }
+  .pad-main .dive-card .who { font-size: 18px; }
+  .pad-main .dive-card .meta { font-size: 13px; }
+  .pad-main .readout { grid-column: 1; grid-row: 2; min-height: 0; overflow: hidden; }
+  .pad-main .readout .value { font-size: clamp(32px, 12vh, 56px); }
+  .pad-main .readout .status { font-size: 14px; }
+  .pad-main .keypad, .pad-main .pad-wait { grid-column: 2; grid-row: 1 / 4; }
+  .pad-main .send { grid-column: 1; grid-row: 3; min-height: 52px; }
+}
 
 /* ---------- judge tiles (shared by audience + referee + judge result) ---------- */
 .tiles { display: grid; gap: 10px; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); }
 .tile {
   background: var(--panel-2); border: 2px solid var(--line); border-radius: 12px;
   text-align: center; padding: 8px 4px 10px; position: relative;
+  container-type: inline-size;
 }
 .tile .j, .tile .s { display: block; }
 .tile .j { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
-.tile .s { font-family: var(--mono); font-size: clamp(22px, 4vw, 40px); font-weight: 800; line-height: 1.1; }
+/* 40cqi keeps "10.0" (about 2.4em of mono text) inside the tile however narrow it gets. */
+.tile .s { font-family: var(--mono); font-size: min(clamp(22px, 4vw, 40px), 40cqi); font-weight: 800; line-height: 1.1; }
 .tile.in { border-color: var(--good); }
 .tile.dropped .s { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 3px; opacity: .6; }
 .tile.waiting .s { color: var(--muted); }
@@ -246,7 +282,7 @@ body.judge { height: 100dvh; overflow: hidden; }
 .mini span { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
 
 /* ---------- referee ---------- */
-.ref-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.ref-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1100px) { .ref-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .ref-controls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-top: 16px; }
 .ref-controls .btn { min-height: 56px; font-size: 17px; }
@@ -257,6 +293,8 @@ body.judge { height: 100dvh; overflow: hidden; }
 .order { border-collapse: collapse; width: 100%; font-size: 14px; }
 .order th, .order td { border-top: 1px solid var(--line); padding: 6px; text-align: left; white-space: nowrap; }
 .order th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+/* Keep diver names in view while the rounds scroll sideways on narrow screens. */
+.order th:first-child, .order td:first-child { position: sticky; left: 0; z-index: 1; background: var(--panel); }
 .order td.slot { cursor: pointer; border-radius: 6px; }
 .order td.slot:hover { background: var(--panel-2); }
 .order td.slot.done { color: var(--muted); }
@@ -328,7 +366,7 @@ dialog.wide { max-width: 760px; }
 .warnings { margin: 0 0 8px; padding-left: 18px; color: var(--warn); font-size: 13px; }
 dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; max-width: 420px; width: calc(100% - 32px); }
 dialog::backdrop { background: rgb(0 0 0 / .6); }
-.score-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 12px 0; }
+.score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; margin: 12px 0; }
 .score-grid button { min-height: 44px; padding: 0; font-family: var(--mono); font-weight: 700; }
 .toast {
   position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
@@ -342,6 +380,35 @@ details > summary::before { content: "▸ "; color: var(--accent); }
 details[open] > summary::before { content: "▾ "; }
 @media (max-width: 600px) {
   .tiles { gap: 6px; }
+  .tiles:has(> :nth-child(6)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .result { grid-template-columns: 1fr 1fr; }
   .result .box:first-child { grid-column: 1 / -1; }
+}
+
+/* ---------- touch screens ---------- */
+@media (pointer: coarse) {
+  .btn.small { min-height: 44px; }
+  /* iOS Safari zooms the page when a focused field's text is under 16px. */
+  input, select, textarea { font-size: 16px; }
+}
+
+/* ---------- setup: one card per diver on phones ---------- */
+@media (max-width: 720px) {
+  .divers-table, .divers-table tbody { display: block; }
+  .divers-table thead { display: none; }
+  .divers-table tr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .divers-table td { border-top: 0; padding: 0; }
+  .divers-table td.num { flex: 0 0 auto; min-width: 24px; padding-top: 10px; }
+  .divers-table td:nth-child(2) { flex: 1 1 0; min-width: 0; }
+  .divers-table td:nth-child(2) input, .divers-table td:nth-child(3) input { min-width: 0; }
+  .divers-table td.acts { order: 1; position: static; box-shadow: none; background: none; padding-top: 2px !important; }
+  .divers-table td:nth-child(3) { order: 2; flex: 1 1 100%; padding-left: 32px; }
+  .divers-table td.dive-cell { order: 3; flex: 1 1 130px; min-width: 0; }
+  .divers-table input { min-height: 44px; }
+  .divers-table .scored { font-size: 12px; }
+  .divers-table td.dive-cell::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .divers-table td.empty { flex: 1 1 100%; }
+  .dive-cell .code { flex: 1 1 0; width: auto; min-width: 0; }
+  .dive-cell .desc { max-width: none; font-size: 12px; }
+  .icon-btn { width: 44px; height: 44px; }
 }
