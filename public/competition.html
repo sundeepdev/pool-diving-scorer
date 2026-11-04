@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a2b">
+<title>Competition Setup</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Home"><img src="/icon.svg" alt="" width="26" height="26"></a>
+  <span class="title" id="compName">Loading…</span>
+  <span class="pill mono" id="codePill"></span>
+</header>
+
+<main class="wrap" id="app" hidden>
+  <section class="card">
+    <h2>Competition</h2>
+    <div class="row">
+      <div class="field" style="flex:3 1 260px"><label for="cName">Name</label><input id="cName" maxlength="80" placeholder="EDC Club Championships"></div>
+    </div>
+    <div class="share" id="shareBox"></div>
+  </section>
+
+  <section class="card comp-step">
+    <div class="card-head">
+      <div><h2><span class="step">1</span>Platforms and boards <span class="muted" id="platCount"></span></h2>
+        <p class="lead" style="margin:0">Add each board or platform that will be in use. Name them if there are two of the same height.</p></div>
+    </div>
+    <div class="toolbar" id="quickPlatforms" aria-label="Add a platform"></div>
+    <div id="platformList" class="chip-list"></div>
+  </section>
+
+  <section class="card comp-step">
+    <div class="card-head">
+      <div><h2><span class="step">2</span>Judges <span class="muted" id="judgeCount"></span></h2>
+        <p class="lead" style="margin:0">Paste the names, one per line, or copy a column from a spreadsheet. You assign them to platforms when the competition starts.</p></div>
+    </div>
+    <form id="judgeForm" class="judge-add">
+      <textarea id="judgeText" rows="3" spellcheck="false" placeholder="Alex Brown&#10;Sam Patel&#10;Jo Smith" aria-label="Judge names"></textarea>
+      <button class="btn primary">+ Add judges</button>
+    </form>
+    <div id="judgeList" class="chip-list"></div>
+  </section>
+
+  <section class="card comp-step">
+    <div class="card-head">
+      <div><h2><span class="step">3</span>Groups and divers <span class="muted" id="diverCount"></span></h2>
+        <p class="lead" style="margin:0">Import the diver list with a <b>Group</b> column and the groups are created for you. Set each group's rotation: which platform, and how many dives on it. DD fills in from the World Aquatics table for that height.</p></div>
+      <div class="toolbar">
+        <button class="btn primary" id="importBtn">⇪ Import divers…</button>
+        <button class="btn" id="exportBtn">Export CSV</button>
+        <button class="btn" id="addGroupBtn">+ Add group</button>
+      </div>
+    </div>
+    <div id="groups"></div>
+  </section>
+
+  <section class="card" id="warnCard" hidden>
+    <h2>Before you start</h2>
+    <ul class="warnings" id="warnList"></ul>
+  </section>
+
+  <div class="savebar" id="savebar">
+    <span id="saveStatus" class="muted">All changes saved</span>
+    <button class="btn" id="discardBtn" hidden>Discard</button>
+    <button class="btn good" id="saveBtn" disabled>Save setup</button>
+  </div>
+</main>
+
+<main class="wrap hidden" id="noKey" style="max-width:520px">
+  <section class="card" style="margin-top:24px">
+    <h2>Referee access</h2>
+    <p class="lead">This device doesn't have the referee key for this competition. Open the referee link from the device that created it, or paste the key.</p>
+    <form id="keyForm"><div class="field"><label for="keyInput">Referee key</label><input id="keyInput" class="mono" autocomplete="off"></div>
+      <button class="btn primary">Continue</button><p class="error" id="keyErr"></p></form>
+  </section>
+</main>
+
+<dialog id="importDlg" class="wide">
+  <h2 style="margin:0 0 4px">Import divers</h2>
+  <p class="muted" style="margin:0 0 12px">Upload a CSV exported from Excel or Google Sheets, or copy the rows in the spreadsheet and paste them below.
+    Columns: <span class="mono">Name, Team, Group, Dive 1, Dive 2…</span> with a header row. DD columns (<span class="mono">DD 1, DD 2…</span>) and an
+    <span class="mono">Other dives</span> column are optional.
+    <a href="#" id="templateLink">Download a template</a>.</p>
+  <label class="drop" id="dropZone">
+    <input type="file" id="importFile" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" hidden>
+    <b>Choose a CSV file</b> or drop it here
+  </label>
+  <textarea id="importText" spellcheck="false" placeholder="…or paste here, e.g.
+Name	Team	Group	Dive 1	Dive 2	Dive 3
+Ana Silva	EDC	Girls 12–13	101B	201C	301C
+Mia Chen	EDC	Girls 12–13	103C	201B	401C"></textarea>
+  <div id="importPreview" class="import-preview"></div>
+  <div class="row" style="align-items:center;margin-top:12px">
+    <label class="check" style="flex:0 1 auto"><input type="radio" name="importMode" value="append" checked> Add to current list</label>
+    <label class="check" style="flex:0 1 auto"><input type="radio" name="importMode" value="replace"> Replace current list</label>
+    <span style="flex:1 1 0"></span>
+    <button class="btn" id="importCancel" type="button" style="flex:0 0 auto">Cancel</button>
+    <button class="btn primary" id="importGo" type="button" style="flex:0 0 auto" disabled>Import</button>
+  </div>
+</dialog>
+<div class="toast hidden" id="toast" role="alert"></div>
+<script type="module" src="/competition.js"></script>
+</body>
+</html>

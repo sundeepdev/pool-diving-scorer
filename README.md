@@ -44,6 +44,23 @@ The referee key is saved in the browser that created the meet. Use **Copy refere
 
 **Download results (Excel)** on the Live control tab saves a real `.xlsx` workbook with sheets for **Standings** (rank, points per round, total), one sheet per **Round**, **All dives** (the same columns as the CSV) and **Divers** (the diver list, in the import/export format). Scores, DD and points are stored as numbers, so totals and formulas work straight away in Excel, Numbers, LibreOffice or Google Sheets (File → Import).
 
+## Competitions with groups and platforms (setup, in progress)
+
+For a competition where several groups of divers rotate across boards and platforms, choose **Set up competition** on `/`. The setup page (`/competition?c=CODE`) has three steps:
+
+1. **Platforms and boards**: tap `+ 1m`, `+ 3m`, `+ 5m`, `+ 7.5m` or `+ 10m` for each one in use.
+2. **Judges**: paste the names, one per line, or a column copied from a spreadsheet.
+3. **Groups and divers**: import the diver list. A `Group` column creates the groups; an optional `Other dives` column lists the dives a diver can also do.
+   ```
+   Name, Team, Group, Dive 1, Dive 2, Dive 3, Dive 4, Other dives
+   Ana Silva, EDC, Girls 12-13, 101B, 201C, 301C, 401C, 103C
+   ```
+   Then set each group's **rotation**, for example 2 dives on the 1m, then 2 on the 3m. DD fills in from the World Aquatics table for the height of each round, and changes if the rotation changes. Type a DD to override it.
+
+Live scoring for these competitions (judge panels per platform, platform and head referee screens, scoreboards and the Excel export) is still being built; until then, run each group as its own meet.
+
+The DD table in `public/ddtable.js` comes from World Aquatics Competition Regulations, Diving Rules, Appendix 9 and 11 (in force from 9 November 2024). `scripts/parse_dd_table.py` rebuilds it from a new edition.
+
 ## Develop
 
 ```bash

@@ -1,4 +1,5 @@
 export { Meet } from "./meet.js";
+export { Competition } from "./competition.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -15,6 +16,14 @@ function newCode() {
 }
 
 const meetStub = (env, code) => env.MEET.get(env.MEET.idFromName(code));
+const compStub = (env, code) => env.COMPETITION.get(env.COMPETITION.idFromName(code));
+
+// Meets and competitions share one code space so a code typed on the home
+// page always means one thing.
+async function codeTaken(env, code) {
+  const [meet, comp] = await Promise.all([meetStub(env, code).summary(), compStub(env, code).exists()]);
+  return !!meet || comp;
+}
 
 export default {
   async fetch(request, env) {
@@ -24,6 +33,7 @@ export default {
       const cfg = await request.json().catch(() => ({}));
       for (let attempt = 0; attempt < 5; attempt++) {
         const code = newCode();
+        if (await compStub(env, code).exists()) continue;
         try {
           const res = await meetStub(env, code).create(code, cfg);
           if (!res.error) return json(res, 201);
@@ -32,6 +42,37 @@ export default {
         }
       }
       return json({ error: "Could not allocate a meet code, try again" }, 503);
+    }
+
+    if (url.pathname === "/api/competitions" && request.method === "POST") {
+      const input = await request.json().catch(() => ({}));
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const code = newCode();
+        if (await codeTaken(env, code)) continue;
+        const res = await compStub(env, code).create(code, input);
+        if (!res.error) return json(res, 201);
+      }
+      return json({ error: "Could not allocate a competition code, try again" }, 503);
+    }
+
+    const c = url.pathname.match(/^\/api\/competitions\/([A-Za-z0-9]{6})(?:\/(setup))?$/);
+    if (c) {
+      const stub = compStub(env, c[1].toUpperCase());
+      if (c[2] === "setup") {
+        const key = request.headers.get("x-referee-key");
+        if (request.method === "GET") {
+          const { status, body } = await stub.getSetup(key);
+          return json(body, status);
+        }
+        if (request.method === "PUT") {
+          const input = await request.json().catch(() => null);
+          const { status, body } = await stub.putSetup(key, input);
+          return json(body, status);
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+      const summary = await stub.summary();
+      return summary ? json(summary) : json({ error: "Competition not found" }, 404);
     }
 
     const m = url.pathname.match(/^\/api\/meets\/([A-Za-z0-9]{6})(?:\/(ws|auth))?$/);

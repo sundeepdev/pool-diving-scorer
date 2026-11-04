@@ -11,10 +11,18 @@ html_handling = "auto-trailing-slash"
 name = "MEET"
 class_name = "Meet"
 
+[[durable_objects.bindings]]
+name = "COMPETITION"
+class_name = "Competition"
+
 # SQLite-backed Durable Objects are available on the Workers Free plan.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Meet"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Competition"]
 
 [observability]
 enabled = true

@@ -56,8 +56,20 @@
     </section>
   </div>
 
+  <section class="card" style="margin-top:16px">
+    <div class="card-head">
+      <div><h2>Competition with groups and platforms <span class="pill">New</span></h2>
+        <p class="lead" style="margin:0">Several groups of divers rotating across boards and platforms, each with its own judges. Import divers and judges, set the rotation, DD fills in for each height.</p></div>
+    </div>
+    <form id="compForm" class="add-row" style="border-top:0;margin-top:0;padding-top:4px">
+      <input id="compName" placeholder="EDC Club Championships" maxlength="80" required aria-label="Competition name">
+      <button class="btn good">Set up competition →</button>
+    </form>
+    <p class="error" id="compErr"></p>
+  </section>
+
   <section class="card" id="myMeets" style="margin-top:16px" hidden>
-    <h2>Meets you run on this device</h2>
+    <h2>Meets and competitions on this device</h2>
     <ul class="meets-list" id="myMeetsList"></ul>
   </section>
 </main>
