@@ -1,8 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { SetupError, assignSeat, cleanPanels, fillPanels, judgeSeat, normalizeSetup, panelSize, setupWarnings } from "../public/competition-model.js";
+import { SetupError, assignSeat, cleanPanels, fillPanels, judgeSeat, normalizeSetup, panelSize, roundPlan, setupWarnings } from "../public/competition-model.js";
+import * as live from "./live.js";
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-// Wrong PINs or referee keys allowed per minute before sign-in pauses.
+// Wrong judge PINs allowed per minute before judge sign-in pauses.
 const MAX_FAILURES = 10;
 
 function randomString(len, alphabet) {
@@ -26,7 +27,8 @@ function timingSafeEqual(a, b) {
 //
 // WebSocket sign-in happens in the first message, never in the URL, so PINs
 // and keys don't end up in request logs:
-//   referee: { type: "hello", role: "referee", key }
+//   referee: { type: "hello", role: "referee", key }  (head referee key, or a
+//            platform referee key that only controls that platform)
 //   judge:   { type: "hello", role: "judge", pin, judgeId? }
 // A judge without judgeId gets the judge list to pick their name from.
 export class Competition extends DurableObject {
@@ -36,8 +38,8 @@ export class Competition extends DurableObject {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     ctx.blockConcurrencyWhile(async () => {
       this.state = (await ctx.storage.get("state")) ?? null;
-      // Competitions created before judge panels existed.
-      if (this.state && !this.state.panels) this.state.panels = cleanPanels({}, this.state.setup);
+      // Competitions created before judge panels or live scoring existed.
+      if (this.state) this.tidy();
     });
   }
 
@@ -53,9 +55,21 @@ export class Competition extends DurableObject {
       setup,
       panels: cleanPanels({}, setup),
     };
+    this.tidy();
     await this.ctx.storage.put("state", this.state);
     await this.ctx.storage.setAlarm(Date.now() + RETENTION_MS);
     return { code, adminKey: this.state.adminKey };
+  }
+
+  // Keeps panels, live state and platform referee keys consistent with the setup.
+  tidy() {
+    const st = this.state;
+    st.panels = cleanPanels(st.panels, st.setup);
+    live.cleanLive(st);
+    st.platformKeys ||= {};
+    const keys = {};
+    for (const p of st.setup.platforms) keys[p.id] = st.platformKeys[p.id] || randomString(24, "abcdefghijkmnopqrstuvwxyz23456789");
+    st.platformKeys = keys;
   }
 
   async exists() {
@@ -95,7 +109,7 @@ export class Competition extends DurableObject {
       throw err;
     }
     this.state.setup = setup;
-    this.state.panels = cleanPanels(this.state.panels, setup);
+    this.tidy();
     this.state.version++;
     await this.ctx.storage.put("state", this.state);
     this.broadcast();
@@ -142,22 +156,73 @@ export class Competition extends DurableObject {
     const who = ws.deserializeAttachment() ?? {};
     try {
       if (msg.type === "hello") return this.hello(ws, msg);
-      if (who.role !== "referee") throw new SetupError(who.role ? "Only the referee can do that" : "Sign in first");
-      const { setup } = this.state;
-      if (msg.type === "seat") {
-        this.state.panels = assignSeat(this.state.panels, setup, String(msg.platformId), Number(msg.seat), msg.judgeId ? String(msg.judgeId) : null);
-      } else if (msg.type === "fill") {
-        this.state.panels = fillPanels(this.state.panels, setup);
-      } else if (msg.type === "clearPanels") {
-        this.state.panels = cleanPanels({}, setup);
-      } else throw new SetupError("Unknown action");
+      if (who.role === "judge") await this.onJudge(ws, who.judgeId, msg);
+      else if (who.role === "referee") this.onReferee(who.scope, msg);
+      else throw new SetupError("Sign in first");
       await this.ctx.storage.put("state", this.state);
       this.broadcast();
-      if (msg.ref !== undefined) ws.send(JSON.stringify({ type: "ack", ref: msg.ref }));
+      if (msg.ref !== undefined) ws.send(JSON.stringify({ type: "ack", ref: msg.ref, seq: msg.seq, value: msg.value }));
     } catch (err) {
-      if (!(err instanceof SetupError)) console.error(err);
-      ws.send(JSON.stringify({ type: "error", message: err instanceof SetupError ? err.message : "Server error", ref: msg.ref }));
+      const known = err instanceof SetupError || err instanceof live.LiveError;
+      if (!known) console.error(err);
+      ws.send(JSON.stringify({ type: "error", message: known ? err.message : "Server error", ref: msg.ref }));
     }
+  }
+
+  onReferee(scope, msg) {
+    const st = this.state;
+    const { setup } = st;
+    const head = scope === "all";
+    // Panels: head referee only.
+    if (["seat", "fill", "clearPanels"].includes(msg.type)) {
+      if (!head) throw new SetupError("Only the head referee can change judge panels");
+      if (msg.type === "seat") st.panels = assignSeat(st.panels, setup, String(msg.platformId), Number(msg.seat), msg.judgeId ? String(msg.judgeId) : null);
+      else if (msg.type === "fill") st.panels = fillPanels(st.panels, setup);
+      else st.panels = cleanPanels({}, setup);
+      return;
+    }
+    const pid = String(msg.platformId ?? "");
+    if (!head && pid !== scope) throw new SetupError("You control a different platform");
+    switch (msg.type) {
+      case "startGroup":
+        return live.startGroup(st, pid, msg.groupId ? String(msg.groupId) : null);
+      case "call":
+        return live.call(st, pid, String(msg.diverId), Number(msg.round));
+      case "next":
+        return live.callNext(st, pid);
+      case "setDive":
+        live.setDive(st, pid, msg.code, msg.dd);
+        st.version++; // the diver's dive list changed: a stale setup page must reload
+        return;
+      case "setScore":
+        return live.setScore(st, pid, Number(msg.seat), msg.value === null ? null : Number(msg.value));
+      case "reveal":
+        return live.revealNow(st, pid);
+      case "failed":
+        return live.failDive(st, pid);
+      case "reopen":
+        return live.reopen(st, pid);
+      case "clear":
+        return live.clearCurrent(st, pid);
+      default:
+        throw new SetupError("Unknown action");
+    }
+  }
+
+  async onJudge(ws, judgeId, msg) {
+    const st = this.state;
+    const at = judgeSeat(st.panels, st.setup, judgeId);
+    if (!at) throw new SetupError("You're not on a panel");
+    if (msg.type === "score") return live.judgeScore(st, at.platformId, at.seat, Number(msg.seq), Number(msg.value));
+    if (msg.type === "setDive") {
+      // The judge in seat 1 (chief judge) may correct the dive before it's revealed.
+      if (at.seat !== 1) throw new SetupError("Only the judge in seat 1 can change the dive");
+      if (st.live[at.platformId]?.current?.phase !== "scoring") throw new SetupError("The dive is already revealed");
+      live.setDive(st, at.platformId, msg.code, msg.dd);
+      st.version++;
+      return;
+    }
+    throw new SetupError("Unknown action");
   }
 
   hello(ws, msg) {
@@ -165,13 +230,18 @@ export class Competition extends DurableObject {
       this.failures.push(Date.now());
       ws.send(JSON.stringify({ type: "error", fatal: true, message }));
     };
-    if (this.throttled()) return ws.send(JSON.stringify({ type: "error", fatal: true, message: "Too many attempts. Wait a minute and try again." }));
     if (msg.role === "referee") {
-      if (!timingSafeEqual(msg.key, this.state.adminKey)) return fail("Invalid referee key");
-      ws.serializeAttachment({ role: "referee" });
+      // Referee keys are 24 random characters, so they aren't throttled: a flood of
+      // wrong judge PINs must never lock the referee out.
+      let scope = null;
+      if (timingSafeEqual(msg.key, this.state.adminKey)) scope = "all";
+      else for (const [pid, k] of Object.entries(this.state.platformKeys)) if (timingSafeEqual(msg.key, k)) scope = pid;
+      if (!scope) return ws.send(JSON.stringify({ type: "error", fatal: true, message: "Invalid referee key" }));
+      ws.serializeAttachment({ role: "referee", scope });
       return this.sendState(ws);
     }
     if (msg.role === "judge") {
+      if (this.throttled()) return ws.send(JSON.stringify({ type: "error", fatal: true, message: "Too many attempts. Wait a minute and try again." }));
       if (!timingSafeEqual(msg.pin, this.state.judgePin)) return fail("Wrong judge PIN");
       const judge = this.state.setup.judges.find((j) => j.id === msg.judgeId);
       if (!judge) {
@@ -216,18 +286,33 @@ export class Competition extends DurableObject {
     return [...new Set(this.sockets("judge").map((ws) => ws.deserializeAttachment().judgeId))];
   }
 
-  refereeView() {
-    const { code, judgePin, setup, panels } = this.state;
+  refereeView(scope) {
+    const st = this.state;
+    const { code, judgePin, setup, panels } = st;
+    const progress = {};
+    for (const p of setup.platforms) {
+      progress[p.id] = {};
+      for (const g of setup.groups) if (live.roundsOn(st, g.id, p.id).length) progress[p.id][g.id] = live.progress(st, g.id, p.id);
+    }
     return {
       code,
+      scope,
       judgePin,
       name: setup.name,
       platforms: setup.platforms,
       judges: setup.judges,
-      groups: setup.groups.map(({ id, name, panel, legs }) => ({ id, name, panel, legs })),
+      groups: setup.groups.map((g) => ({ ...g, plan: roundPlan(g, setup.platforms) })),
+      divers: setup.divers,
       panels,
       sizes: Object.fromEntries(setup.platforms.map((p) => [p.id, panelSize(setup, p.id)])),
       online: this.onlineJudges(),
+      live: st.live,
+      next: Object.fromEntries(setup.platforms.map((p) => [p.id, live.nextSlot(st, p.id)])),
+      progress,
+      results: st.results,
+      standings: Object.fromEntries(setup.groups.map((g) => [g.id, live.groupStandings(st, g.id)])),
+      // Only the head referee can hand out platform referee links.
+      platformKeys: scope === "all" ? st.platformKeys : undefined,
     };
   }
 
@@ -237,6 +322,13 @@ export class Competition extends DurableObject {
     if (!me) return { code, name: setup.name, me: null, seat: null };
     const at = judgeSeat(panels, setup, judgeId);
     const platform = at && setup.platforms.find((p) => p.id === at.platformId);
+    const l = at ? this.state.live[at.platformId] : null;
+    const group = l?.groupId ? setup.groups.find((g) => g.id === l.groupId) : null;
+    const c = l?.current;
+    const diver = c ? setup.divers.find((d) => d.id === c.diverId) : null;
+    const res = c ? this.state.results[`${c.diverId}:${c.round}`] : null;
+    const next = at ? live.nextSlot(this.state, at.platformId) : null;
+    const nextDiver = next && setup.divers.find((d) => d.id === next.diverId);
     return {
       code,
       name: setup.name,
@@ -246,15 +338,40 @@ export class Competition extends DurableObject {
         platformName: platform.name,
         height: platform.height,
         size: panelSize(setup, platform.id),
-        groups: setup.groups.filter((g) => g.legs.some((l) => l.platformId === platform.id)).map((g) => g.name),
+        groups: setup.groups.filter((g) => g.legs.some((leg) => leg.platformId === platform.id)).map((g) => g.name),
       },
+      group: group && { id: group.id, name: group.name, panel: group.panel, rounds: roundPlan(group, setup.platforms).length },
+      // Seats beyond the group's panel size don't score.
+      scoring: !!(at && group && at.seat <= group.panel),
+      canEditDive: at?.seat === 1,
+      current: c && {
+        seq: c.seq,
+        diverName: diver?.name ?? "",
+        team: diver?.team ?? "",
+        round: c.round,
+        code: c.code,
+        dd: c.dd,
+        height: c.height,
+        phase: c.phase,
+        failed: c.failed,
+        submitted: c.scores.filter((v) => v !== null).length,
+        panel: c.scores.length,
+        myScore: at && at.seat <= c.scores.length ? c.scores[at.seat - 1] : null,
+        // Other judges' scores stay hidden until the dive is revealed.
+        scores: c.phase === "revealed" ? c.scores : null,
+        dropped: res?.dropped ?? [],
+        award: res?.award ?? null,
+        // Dives this diver declared or can also do, for the chief judge's dive picker.
+        options: diver ? [...new Set([...diver.dives.filter(Boolean).map((d) => d.code), ...(diver.extra || [])].filter(Boolean))] : [],
+      },
+      next: nextDiver ? { diverName: nextDiver.name, round: next.round } : null,
     };
   }
 
   sendState(ws) {
     const who = ws.deserializeAttachment() ?? {};
     let state;
-    if (who.role === "referee") state = this.refereeView();
+    if (who.role === "referee") state = this.refereeView(who.scope || "all");
     else if (who.role === "judge") state = this.judgeView(who.judgeId);
     else return;
     try {

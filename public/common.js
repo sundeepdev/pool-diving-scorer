@@ -49,9 +49,18 @@ export function confirmDialog(message, { ok = "OK", danger = false } = {}) {
   </form>`;
   document.body.append(dlg);
   return new Promise((resolve) => {
+    let done = false;
+    const finish = (yes) => {
+      if (done) return;
+      done = true;
+      resolve(yes);
+    };
+    // Answer on the click itself: the "close" event is queued and can arrive
+    // seconds later in a background tab, after other actions were sent.
+    dlg.querySelector("form").addEventListener("submit", (e) => finish(e.submitter?.value === "ok"));
     dlg.addEventListener("close", () => {
       dlg.remove();
-      resolve(dlg.returnValue === "ok");
+      finish(dlg.returnValue === "ok");
     });
     dlg.showModal();
   });

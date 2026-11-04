@@ -59,7 +59,17 @@ For a competition where several groups of divers rotate across boards and platfo
 
 **Judge panels** (`/control?c=CODE`, linked from setup): share the judge link and PIN. Each judge opens `/pad?c=CODE` (or types the code under **Judge** on `/`), enters the PIN and taps their name. Pick a judge for each seat of each platform, or press **Fill empty seats**. A judge sits in one seat at a time, so picking them on another platform moves them, and their pad follows straight away. Each platform uses as many seats as the largest panel (3, 5 or 7) of the groups that dive there. One device per judge: signing in on a new phone replaces the old one. Sign-in pauses for a minute after 10 wrong PINs, and PINs and keys are sent after connecting, never in the URL.
 
-Live scoring for these competitions (platform and head referee screens, scoring on the judge pads, scoreboards and the Excel export) is still being built; until then, run each group as its own meet.
+**Live scoring** (`/control?c=CODE`, one tab per platform):
+
+1. On a platform's tab, pick the **group on this platform**. A group can be on one platform at a time.
+2. **Call next** (`N`) calls the group's dives on that platform round by round, divers in order. DD is set for the platform's height. Click any cell in the running order to call or review that dive.
+3. Judges score on their pads (only the seats the group's panel uses). Scores reveal when all are in, or with **Reveal** (`R`) if the group has auto-reveal turned off. Click a judge's tile to override a score. **Failed dive**, **Re-open scoring** and **Cancel call** work as in a single meet.
+4. **Change dive** before or after the reveal; a blank DD takes the table value for the height. The judge in **seat 1** (chief judge) can also change the dive from their pad before it's revealed, choosing from the diver's declared and other dives.
+5. When the group has finished on the platform, take it off and start it on its next platform. **Standings** add up each diver's dives across all platforms.
+
+**Two ways to run it:** one head referee runs every platform from the tabs, or each platform has its own referee. On **Judge panels**, **Copy 1m link** (etc.) gives a link that controls only that platform; it can't change panels or the setup.
+
+Scoreboards and the Excel export for competitions are still being built.
 
 The DD table in `public/ddtable.js` comes from World Aquatics Competition Regulations, Diving Rules, Appendix 9 and 11 (in force from 9 November 2024). `scripts/parse_dd_table.py` rebuilds it from a new edition.
 

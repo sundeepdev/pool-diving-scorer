@@ -46,8 +46,31 @@
   <div class="banner bad hidden" id="offlineBanner">Connection lost. Reconnecting…</div>
   <main class="pad-main">
     <section class="assign" id="assign" aria-live="polite"></section>
+    <div id="scorePad" class="hidden" style="display:contents">
+      <section class="dive-card" id="diveCard"></section>
+      <section class="readout" id="readout" aria-live="polite">
+        <div class="value" id="readValue">–</div>
+        <div class="status" id="readStatus"></div>
+      </section>
+      <section class="keypad hidden" id="keypad" aria-label="Score keypad"></section>
+      <section class="pad-wait" id="padWait"></section>
+      <button class="send" id="sendBtn" disabled>WAITING</button>
+    </div>
   </main>
 </div>
+
+<dialog id="diveDlg">
+  <form method="dialog" id="diveDlgForm">
+    <h2 style="margin:0">Change the dive</h2>
+    <p class="muted" style="margin:4px 0 10px" id="diveDlgWho"></p>
+    <div id="diveOptions" class="name-grid" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))"></div>
+    <div class="row" style="margin-top:12px">
+      <div class="field"><label for="dCode">Dive number</label><input id="dCode" class="mono" maxlength="5" autocapitalize="characters" autocomplete="off"></div>
+      <div class="field"><label for="dDD">DD <span class="muted small">(blank = table)</span></label><input id="dDD" class="mono" inputmode="decimal" maxlength="4" autocomplete="off"></div>
+    </div>
+    <div class="row"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok" id="dSave">Change dive</button></div>
+  </form>
+</dialog>
 <div class="toast hidden" id="toast" role="alert"></div>
 <script type="module" src="/pad.js"></script>
 </body>
