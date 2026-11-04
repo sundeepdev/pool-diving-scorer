@@ -17,9 +17,10 @@ $("#judgeForm").addEventListener("submit", async (e) => {
   const c = clean($("#jCode").value);
   location.href = (await isCompetition(c)) ? `/pad?c=${c}` : `/judge?meet=${c}`;
 });
-$("#watchForm").addEventListener("submit", (e) => {
+$("#watchForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  location.href = `/live?meet=${clean($("#wCode").value)}`;
+  const c = clean($("#wCode").value);
+  location.href = (await isCompetition(c)) ? `/show?c=${c}` : `/live?meet=${c}`;
 });
 
 $("#createForm").addEventListener("submit", async (e) => {
@@ -71,7 +72,7 @@ if (mine.length) {
     .map((m) =>
       m.kind === "competition"
         ? `<li><span><b class="mono">${esc(m.code)}</b> · ${esc(m.name || "")} <span class="muted small">(competition)</span></span><span>
-      <a href="/competition?c=${esc(m.code)}">Setup</a> · <a href="/control?c=${esc(m.code)}">Judge panels</a></span></li>`
+      <a href="/competition?c=${esc(m.code)}">Setup</a> · <a href="/control?c=${esc(m.code)}">Control</a> · <a href="/show?c=${esc(m.code)}">Scoreboard</a></span></li>`
         : `<li><span><b class="mono">${esc(m.code)}</b> · ${esc(m.name || "")}</span><span>
       <a href="/referee?meet=${esc(m.code)}">Control</a> · <a href="/live?meet=${esc(m.code)}">Scoreboard</a></span></li>`,
     )

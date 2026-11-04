@@ -487,3 +487,17 @@ details[open] > summary::before { content: "▾ "; }
 .pad-main.assign-mode { grid-template-rows: 1fr; grid-template-columns: 1fr; }
 .dive-card .seatline { font-size: 13px; color: var(--muted); font-weight: 700; }
 .dive-card .edit-dive { margin-left: auto; }
+
+/* ---------- competition scoreboard ---------- */
+.view-sel { width: auto; min-height: 36px; padding: 4px 8px; font-weight: 700; max-width: 40vw; }
+.show-all { display: grid; gap: 16px; padding: 16px; max-width: 1800px; margin: 0 auto; }
+.show-platforms { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.show-boards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.stage.compact { position: relative; }
+.stage.compact .name { font-size: clamp(26px, 3.2vw, 44px); }
+.stage.compact .dive-line { margin: 12px 0 14px; }
+.stage.compact .result { margin-top: 12px; }
+.stage.compact .result .box .v { font-size: clamp(22px, 2.6vw, 34px); }
+.open-plat { position: absolute; top: 12px; right: 14px; font-size: 20px; color: var(--muted); text-decoration: none; }
+.open-plat:hover { color: var(--text); }
+.board + .board { margin-top: 0; }

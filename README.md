@@ -44,7 +44,7 @@ The referee key is saved in the browser that created the meet. Use **Copy refere
 
 **Download results (Excel)** on the Live control tab saves a real `.xlsx` workbook with sheets for **Standings** (rank, points per round, total), one sheet per **Round**, **All dives** (the same columns as the CSV) and **Divers** (the diver list, in the import/export format). Scores, DD and points are stored as numbers, so totals and formulas work straight away in Excel, Numbers, LibreOffice or Google Sheets (File → Import).
 
-## Competitions with groups and platforms (setup, in progress)
+## Competitions with groups and platforms
 
 For a competition where several groups of divers rotate across boards and platforms, choose **Set up competition** on `/`. The setup page (`/competition?c=CODE`) has three steps:
 
@@ -69,7 +69,9 @@ For a competition where several groups of divers rotate across boards and platfo
 
 **Two ways to run it:** one head referee runs every platform from the tabs, or each platform has its own referee. On **Judge panels**, **Copy 1m link** (etc.) gives a link that controls only that platform; it can't change panels or the setup.
 
-Scoreboards and the Excel export for competitions are still being built.
+**Scoreboard** (`/show?c=CODE`, no sign-in; or type the code under **Watch** on `/`): every platform in use at a glance plus live standings for each group. Pick one platform (`/show?c=CODE&p=…`) for the screen by that pool, with the judges' scores flipping in on the reveal. The scoreboard never receives PINs, keys or judge names, and shows individual scores only once a dive is revealed.
+
+**Excel** (**Excel ↓** on the control page): a workbook with a Summary (groups, panel sizes, rotations), a standings sheet per group (each dive labelled with its platform), All dives (platform, height, dive, DD, and each seat's judge name next to their score), Divers (with Other dives), and Judges (how many dives each judge scored on each platform). Download it before the competition is deleted 90 days after it was created.
 
 The DD table in `public/ddtable.js` comes from World Aquatics Competition Regulations, Diving Rules, Appendix 9 and 11 (in force from 9 November 2024). `scripts/parse_dd_table.py` rebuilds it from a new edition.
 

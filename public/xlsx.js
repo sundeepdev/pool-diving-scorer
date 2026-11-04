@@ -240,3 +240,94 @@ export function resultsSheets(state) {
     { name: "Divers", rows: divers, widths: [24, 18, ...Array.from({ length: n }, () => [8, 6]).flat()] },
   ];
 }
+
+// A multi-platform competition (the head or platform referee's view) → sheet
+// list for buildXlsx. Sheets: Summary, Standings per group, All dives (with
+// the judge in each seat next to their score), Divers, Judges.
+export function competitionSheets(view, { exportedAt = new Date() } = {}) {
+  const platformName = new Map(view.platforms.map((p) => [p.id, p.name]));
+  const judgeName = new Map(view.judges.map((j) => [j.id, j.name]));
+  const diverById = new Map(view.divers.map((d) => [d.id, d]));
+  const res = (d, r) => view.results[`${d.id}:${r}`];
+  const seats = Math.max(3, ...view.groups.map((g) => g.panel));
+
+  const summary = [
+    ["Competition", view.name],
+    ["Code", view.code],
+    ["Exported", exportedAt.toISOString().slice(0, 16).replace("T", " ")],
+    [],
+    ["Group", "Divers", "Judges per panel", "Rotation"],
+    ...view.groups.map((g) => [
+      g.name,
+      view.divers.filter((d) => d.groupId === g.id).length,
+      g.panel,
+      g.legs.map((l) => `${platformName.get(l.platformId) ?? "?"} × ${l.dives}`).join(" → "),
+    ]),
+  ];
+
+  const standingsSheets = view.groups.map((g) => {
+    const rounds = g.plan.map((slot, r) => ({ r, label: `D${r + 1} ${platformName.get(slot.platformId) ?? ""}`.trim() }));
+    const ranked = (view.standings[g.id] || []).map((s) => ({ s, d: diverById.get(s.diverId) })).filter((x) => x.d);
+    return {
+      name: g.name,
+      widths: [6, 24, 18, ...rounds.map(() => 10), 9, 12],
+      rows: [
+        ["Rank", "Diver", "Team", ...rounds.map((x) => x.label), "Total", "Dives scored"],
+        ...ranked.map(({ s, d }) => [s.done ? s.rank : "", d.name, d.team, ...rounds.map(({ r }) => (res(d, r) ? pts(res(d, r).award) : "")), pts(s.total), s.done]),
+      ],
+    };
+  });
+
+  const seatCols = Array.from({ length: seats }, (_, i) => [`S${i + 1} judge`, `S${i + 1}`]).flat();
+  const all = [["Group", "Rank", "Diver", "Team", "Dive no.", "Platform", "Height", "Dive", "Description", "DD", ...seatCols, "Points", "Failed"]];
+  for (const g of view.groups) {
+    for (const s of view.standings[g.id] || []) {
+      const d = diverById.get(s.diverId);
+      if (!d) continue;
+      g.plan.forEach((slot, r) => {
+        const x = res(d, r);
+        if (!x) return;
+        const cells = Array.from({ length: seats }, (_, i) => [i < x.scores.length ? judgeName.get(x.judges?.[i]) ?? "" : "", i < x.scores.length ? score(x.scores[i]) : ""]).flat();
+        all.push([g.name, s.rank, d.name, d.team, r + 1, platformName.get(x.platformId) ?? "", x.height ? `${x.height}m` : "", x.code, describeDive(x.code), dd(x.dd), ...cells, pts(x.award), x.failed ? "yes" : ""]);
+      });
+    }
+  }
+
+  const groupName = new Map(view.groups.map((g) => [g.id, g.name]));
+  const n = Math.max(1, ...view.divers.map((d) => d.dives?.length ?? 0));
+  const divers = [
+    ["Name", "Team", "Group", ...Array.from({ length: n }, (_, r) => [`Dive ${r + 1}`, `DD ${r + 1}`]).flat(), "Other dives"],
+    ...view.divers.map((d) => [
+      d.name,
+      d.team,
+      groupName.get(d.groupId) ?? "",
+      ...Array.from({ length: n }, (_, r) => [d.dives?.[r]?.code ?? "", dd(d.dives?.[r]?.dd)]).flat(),
+      (d.extra || []).join(" "),
+    ]),
+  ];
+
+  // Who judged what: count the dives each judge scored, per platform.
+  const counts = new Map();
+  for (const x of Object.values(view.results)) {
+    (x.judges || []).forEach((jid, i) => {
+      if (!jid || i >= x.scores.length) return;
+      const k = `${jid}|${x.platformId}`;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    });
+  }
+  const judges = [["Judge", "Platform", "Dives scored", "Seat now"]];
+  for (const j of view.judges) {
+    const now = view.platforms.map((p) => ((view.panels?.[p.id] || []).indexOf(j.id) >= 0 ? `${p.name} S${view.panels[p.id].indexOf(j.id) + 1}` : "")).find(Boolean) ?? "";
+    const per = view.platforms.filter((p) => counts.get(`${j.id}|${p.id}`));
+    if (!per.length) judges.push([j.name, "", 0, now]);
+    per.forEach((p, i) => judges.push([i ? "" : j.name, p.name, counts.get(`${j.id}|${p.id}`), i ? "" : now]));
+  }
+
+  return [
+    { name: "Summary", rows: summary, widths: [22, 30, 16, 40] },
+    ...standingsSheets,
+    { name: "All dives", rows: all, widths: [18, 6, 24, 18, 8, 10, 8, 8, 34, 6, ...Array.from({ length: seats }, () => [16, 6]).flat(), 9, 7] },
+    { name: "Divers", rows: divers, widths: [24, 18, 18, ...Array.from({ length: n }, () => [8, 6]).flat(), 20] },
+    { name: "Judges", rows: judges, widths: [24, 14, 12, 12] },
+  ];
+}
