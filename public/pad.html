@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#061a2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Judge Pad</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="judge">
+<div id="join" class="wrap hidden" style="max-width:480px;padding-top:32px">
+  <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26"> Pool Diving Scorer</a>
+  <section class="card" style="margin-top:20px">
+    <h2>Judge sign-in</h2>
+    <p class="lead">Enter the competition code and the PIN from the referee.</p>
+    <form id="joinForm">
+      <div class="field"><label for="joinCode">Competition code</label><input id="joinCode" class="mono" maxlength="6" autocapitalize="characters" autocomplete="off" required></div>
+      <div class="field"><label for="joinPin">Judge PIN</label><input id="joinPin" class="mono" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" required></div>
+      <button class="btn primary" style="width:100%;min-height:56px;font-size:18px">Continue</button>
+      <p class="error" id="joinErr"></p>
+    </form>
+  </section>
+</div>
+
+<div id="pick" class="wrap hidden" style="max-width:560px;padding-top:32px">
+  <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26"> Pool Diving Scorer</a>
+  <section class="card" style="margin-top:20px">
+    <h2 id="pickTitle">Who are you?</h2>
+    <p class="lead">Tap your name.</p>
+    <div id="names" class="name-grid"></div>
+    <p class="muted small" style="margin-top:14px">Name missing? Ask the referee to add you on the setup page.</p>
+  </section>
+</div>
+
+<div id="pad" class="pad-app hidden">
+  <header class="topbar">
+    <span class="pill" id="mePill">–</span>
+    <span class="title" id="compName"></span>
+    <span class="pill"><span class="dot" id="connDot"></span><span id="connText">…</span></span>
+    <button class="btn small" id="themeBtn" title="Toggle high-contrast light mode" aria-label="Toggle light mode">☀︎</button>
+    <button class="btn small" id="notMeBtn">Not you?</button>
+  </header>
+  <div class="banner bad hidden" id="offlineBanner">Connection lost. Reconnecting…</div>
+  <main class="pad-main">
+    <section class="assign" id="assign" aria-live="polite"></section>
+  </main>
+</div>
+<div class="toast hidden" id="toast" role="alert"></div>
+<script type="module" src="/pad.js"></script>
+</body>
+</html>

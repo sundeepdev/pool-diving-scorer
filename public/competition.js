@@ -88,7 +88,7 @@ function renderShare() {
   const ref = `${location.origin}/competition?c=${code}#key=${key}`;
   $("#shareBox").innerHTML = `
     <div class="item"><label>Competition code</label><div class="big">${esc(code)}</div>
-      <p class="muted small">Judges and the audience will use this code once live scoring for competitions is added.</p></div>
+      <p class="muted small">Judges enter this code on the home page, or use the judge link on the <a href="/control?c=${esc(code)}">Judge panels</a> page.</p></div>
     <div class="item"><label>Judge PIN</label><div class="big">${esc(judgePin)}</div></div>
     <div class="item"><label>Setup link · keep private</label>
       <div class="btns"><button class="btn small" id="copyRef">Copy setup link</button></div>
@@ -675,6 +675,7 @@ async function start(k) {
   store.set(`comp:${code}`, { ...s, key, name: view.setup.name, createdAt: s.createdAt || Date.now() });
   if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   $("#codePill").textContent = code;
+  $("#controlLink").href = `/control?c=${code}`;
   $("#noKey").classList.add("hidden");
   $("#app").hidden = false;
   load(view);

@@ -155,3 +155,67 @@ export function setupWarnings(setup) {
   if (unassigned) out.push({ message: `${unassigned} diver(s) are not in a group` });
   return out;
 }
+
+// ---- Judge panels ----------------------------------------------------------
+//
+// Each platform has seats 1–7. A judge sits in at most one seat at a time, so
+// moving a judge to another platform frees their old seat. Only the first
+// `panelSize` seats of a platform are used: the largest panel (3, 5 or 7) of
+// the groups whose rotation includes that platform.
+
+export const MAX_SEATS = 7;
+
+export function panelSize(setup, platformId) {
+  const sizes = setup.groups.filter((g) => g.legs.some((l) => l.platformId === platformId)).map((g) => g.panel);
+  return sizes.length ? Math.max(...sizes) : 5;
+}
+
+// Drops platforms and judges that no longer exist and makes sure every
+// platform has MAX_SEATS seats and no judge sits twice.
+export function cleanPanels(panels, setup) {
+  const judges = new Set(setup.judges.map((j) => j.id));
+  const seen = new Set();
+  const out = {};
+  for (const p of setup.platforms) {
+    out[p.id] = Array.from({ length: MAX_SEATS }, (_, i) => {
+      const id = panels?.[p.id]?.[i] ?? null;
+      if (!id || !judges.has(id) || seen.has(id)) return null;
+      seen.add(id);
+      return id;
+    });
+  }
+  return out;
+}
+
+// Puts a judge in a seat (1-based), or empties it when judgeId is null.
+export function assignSeat(panels, setup, platformId, seat, judgeId) {
+  if (!setup.platforms.some((p) => p.id === platformId)) throw new SetupError("Unknown platform");
+  if (!(Number.isInteger(seat) && seat >= 1 && seat <= MAX_SEATS)) throw new SetupError(`Seat must be 1–${MAX_SEATS}`);
+  if (judgeId !== null && !setup.judges.some((j) => j.id === judgeId)) throw new SetupError("Unknown judge");
+  const out = cleanPanels(panels, setup);
+  if (judgeId) for (const seats of Object.values(out)) seats.forEach((id, i) => id === judgeId && (seats[i] = null));
+  out[platformId][seat - 1] = judgeId;
+  return out;
+}
+
+// Fills the empty seats in use with judges who aren't on any panel yet, in
+// the order of the judge list and the platform list.
+export function fillPanels(panels, setup) {
+  const out = cleanPanels(panels, setup);
+  const seated = new Set(Object.values(out).flat().filter(Boolean));
+  const free = setup.judges.map((j) => j.id).filter((id) => !seated.has(id));
+  for (const p of setup.platforms) {
+    const n = panelSize(setup, p.id);
+    for (let i = 0; i < n && free.length; i++) if (!out[p.id][i]) out[p.id][i] = free.shift();
+  }
+  return out;
+}
+
+// Where a judge sits: { platformId, seat, active } or null.
+export function judgeSeat(panels, setup, judgeId) {
+  for (const p of setup.platforms) {
+    const i = (panels?.[p.id] ?? []).indexOf(judgeId);
+    if (i >= 0) return { platformId: p.id, seat: i + 1, active: i < panelSize(setup, p.id) };
+  }
+  return null;
+}

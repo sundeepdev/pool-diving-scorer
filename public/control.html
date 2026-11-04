@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#061a2b">
+<title>Competition Control</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Home"><img src="/icon.svg" alt="" width="26" height="26"></a>
+  <span class="title" id="compName">Loading…</span>
+  <span class="pill mono" id="codePill"></span>
+  <span class="pill"><span class="dot" id="connDot"></span><span id="connText">…</span></span>
+  <a class="btn small" id="setupLink">Setup</a>
+</header>
+
+<main class="wrap" id="app" hidden>
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Judges <span class="muted" id="judgeCount"></span></h2>
+        <p class="lead" style="margin:0">Judges open the judge link, enter the PIN and tap their name. Their pad shows the platform and seat you give them below, and follows when you move them.</p></div>
+    </div>
+    <div class="share" id="shareBox"></div>
+    <div class="chip-list" id="judgeStatus"></div>
+  </section>
+
+  <section class="card comp-step">
+    <div class="card-head">
+      <div><h2>Judge panels</h2>
+        <p class="lead" style="margin:0">Pick a judge for each seat. Picking a judge who is on another panel moves them here. You can change panels between groups.</p></div>
+      <div class="toolbar">
+        <button class="btn primary" id="fillBtn" title="Put judges who aren't on a panel into empty seats">Fill empty seats</button>
+        <button class="btn danger" id="clearBtn">Clear all panels</button>
+      </div>
+    </div>
+    <div class="panel-grid" id="panels"></div>
+  </section>
+</main>
+
+<main class="wrap hidden" id="noKey" style="max-width:520px">
+  <section class="card" style="margin-top:24px">
+    <h2>Referee access</h2>
+    <p class="lead">This device doesn't have the referee key for this competition. Open the setup link from the device that created it, or paste the key.</p>
+    <form id="keyForm"><div class="field"><label for="keyInput">Referee key</label><input id="keyInput" class="mono" autocomplete="off"></div>
+      <button class="btn primary">Continue</button><p class="error" id="keyErr"></p></form>
+  </section>
+</main>
+<div class="toast hidden" id="toast" role="alert"></div>
+<script type="module" src="/control.js"></script>
+</body>
+</html>

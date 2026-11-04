@@ -55,9 +55,10 @@ export default {
       return json({ error: "Could not allocate a competition code, try again" }, 503);
     }
 
-    const c = url.pathname.match(/^\/api\/competitions\/([A-Za-z0-9]{6})(?:\/(setup))?$/);
+    const c = url.pathname.match(/^\/api\/competitions\/([A-Za-z0-9]{6})(?:\/(setup|ws))?$/);
     if (c) {
       const stub = compStub(env, c[1].toUpperCase());
+      if (c[2] === "ws") return stub.fetch(request);
       if (c[2] === "setup") {
         const key = request.headers.get("x-referee-key");
         if (request.method === "GET") {
