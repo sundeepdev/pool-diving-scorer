@@ -67,7 +67,12 @@ export async function api(path, body) {
 // Self-healing WebSocket: reconnects with backoff, detects dead connections
 // (common on poolside Wi-Fi) with a ping watchdog, and reconnects when the
 // tab becomes visible again.
-export function liveSocket({ code, role, judge, key, onState, onMessage, onStatus }) {
+//
+// Meets pass code/role/judge/key, which go in the URL. Competitions pass
+// `path` and a `hello()` function whose result is sent as the first message,
+// so credentials stay out of the URL. Call stop() to give up reconnecting.
+export function liveSocket({ code, role, judge, key, path, hello, onState, onMessage, onStatus }) {
+  let stopped = false;
   let ws = null;
   let retry = 0;
   let timer = null;
@@ -81,15 +86,22 @@ export function liveSocket({ code, role, judge, key, onState, onMessage, onStatu
         ws.close();
       } catch {}
     }
-    const q = new URLSearchParams({ role });
-    if (judge) q.set("judge", judge);
-    if (key) q.set("key", key);
+    if (stopped) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    const sock = (ws = new WebSocket(`${proto}://${location.host}/api/meets/${code}/ws?${q}`));
+    let url;
+    if (path) url = `${proto}://${location.host}${path}`;
+    else {
+      const q = new URLSearchParams({ role });
+      if (judge) q.set("judge", judge);
+      if (key) q.set("key", key);
+      url = `${proto}://${location.host}/api/meets/${code}/ws?${q}`;
+    }
+    const sock = (ws = new WebSocket(url));
     onStatus?.("connecting");
     sock.onopen = () => {
       retry = 0;
       lastSeen = Date.now();
+      if (hello) sock.send(JSON.stringify(hello()));
       onStatus?.("online");
     };
     sock.onmessage = (e) => {
@@ -100,6 +112,7 @@ export function liveSocket({ code, role, judge, key, onState, onMessage, onStatu
       else onMessage?.(msg);
     };
     sock.onclose = () => {
+      if (stopped) return;
       onStatus?.("offline");
       timer = setTimeout(open, Math.min(8000, 400 * 2 ** retry++));
     };
@@ -118,6 +131,14 @@ export function liveSocket({ code, role, judge, key, onState, onMessage, onStatu
 
   open();
   return {
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+      try {
+        ws?.close();
+      } catch {}
+    },
+    reconnect: () => open(),
     send(obj) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(obj));

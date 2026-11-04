@@ -3,9 +3,19 @@ import { $, api, esc, store } from "/common.js";
 const clean = (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 for (const id of ["jCode", "wCode"]) $(`#${id}`).addEventListener("input", (e) => (e.target.value = clean(e.target.value)));
 
-$("#judgeForm").addEventListener("submit", (e) => {
+// A code can belong to a single-board meet or to a competition.
+async function isCompetition(c) {
+  try {
+    return (await fetch(`/api/competitions/${c}`)).ok;
+  } catch {
+    return false;
+  }
+}
+
+$("#judgeForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  location.href = `/judge?meet=${clean($("#jCode").value)}`;
+  const c = clean($("#jCode").value);
+  location.href = (await isCompetition(c)) ? `/pad?c=${c}` : `/judge?meet=${c}`;
 });
 $("#watchForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -61,7 +71,7 @@ if (mine.length) {
     .map((m) =>
       m.kind === "competition"
         ? `<li><span><b class="mono">${esc(m.code)}</b> · ${esc(m.name || "")} <span class="muted small">(competition)</span></span><span>
-      <a href="/competition?c=${esc(m.code)}">Setup</a></span></li>`
+      <a href="/competition?c=${esc(m.code)}">Setup</a> · <a href="/control?c=${esc(m.code)}">Judge panels</a></span></li>`
         : `<li><span><b class="mono">${esc(m.code)}</b> · ${esc(m.name || "")}</span><span>
       <a href="/referee?meet=${esc(m.code)}">Control</a> · <a href="/live?meet=${esc(m.code)}">Scoreboard</a></span></li>`,
     )

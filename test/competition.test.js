@@ -159,3 +159,56 @@ test("import without a header row picks up a group after the team", () => {
     ["101B", "201C"],
   );
 });
+
+import { MAX_SEATS, assignSeat, cleanPanels, fillPanels, judgeSeat, panelSize } from "../public/competition-model.js";
+
+test("panel size comes from the groups that use the platform", () => {
+  const s = normalizeSetup(base());
+  assert.equal(panelSize(s, "p1"), 3);
+  s.groups.push({ id: "g2", name: "Boys", panel: 7, autoReveal: true, legs: [{ platformId: "p3", dives: 4 }] });
+  assert.equal(panelSize(s, "p3"), 7);
+  assert.equal(panelSize(s, "p1"), 3);
+  s.platforms.push({ id: "p10", name: "10m", height: "10" });
+  assert.equal(panelSize(s, "p10"), 5, "unused platform defaults to 5");
+});
+
+test("a judge sits in one seat at a time; moving frees the old seat", () => {
+  const s = normalizeSetup(base());
+  let panels = assignSeat({}, s, "p1", 1, "j1");
+  assert.equal(panels.p1.length, MAX_SEATS);
+  assert.equal(panels.p1[0], "j1");
+  panels = assignSeat(panels, s, "p3", 2, "j1");
+  assert.equal(panels.p1[0], null);
+  assert.equal(panels.p3[1], "j1");
+  assert.deepEqual(judgeSeat(panels, s, "j1"), { platformId: "p3", seat: 2, active: true });
+  panels = assignSeat(panels, s, "p3", 2, null);
+  assert.equal(judgeSeat(panels, s, "j1"), null);
+  assert.throws(() => assignSeat(panels, s, "p9", 1, "j1"), /Unknown platform/);
+  assert.throws(() => assignSeat(panels, s, "p1", 8, "j1"), /Seat must be/);
+  assert.throws(() => assignSeat(panels, s, "p1", 1, "j9"), /Unknown judge/);
+});
+
+test("seats beyond the panel size are kept but not active", () => {
+  const s = normalizeSetup(base());
+  const panels = assignSeat({}, s, "p1", 5, "j2");
+  assert.deepEqual(judgeSeat(panels, s, "j2"), { platformId: "p1", seat: 5, active: false });
+});
+
+test("fill puts unseated judges into empty seats in list order", () => {
+  const s = normalizeSetup(base());
+  s.judges.push({ id: "j4", name: "Kim" }, { id: "j5", name: "Lee" }, { id: "j6", name: "Max" }, { id: "j7", name: "Ned" });
+  let panels = assignSeat({}, s, "p1", 2, "j3");
+  panels = fillPanels(panels, s);
+  assert.deepEqual(panels.p1.slice(0, 3), ["j1", "j3", "j2"]);
+  assert.deepEqual(panels.p3.slice(0, 3), ["j4", "j5", "j6"]);
+  assert.equal(judgeSeat(panels, s, "j7"), null, "no free seat left");
+});
+
+test("cleaning drops removed judges, platforms and duplicates", () => {
+  const s = normalizeSetup(base());
+  const dirty = { p1: ["j1", "j1", "gone"], p3: ["j2"], old: ["j3"] };
+  const panels = cleanPanels(dirty, s);
+  assert.deepEqual(Object.keys(panels).sort(), ["p1", "p3"]);
+  assert.deepEqual(panels.p1.slice(0, 3), ["j1", null, null]);
+  assert.equal(panels.p3[0], "j2");
+});

@@ -448,3 +448,31 @@ details[open] > summary::before { content: "▾ "; }
   .divers-table td.extra-cell::before { content: "Other dives"; display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
   .group-head .gname { flex: 1 1 100%; }
 }
+
+/* ---------- competition control: judge panels ---------- */
+.judge-chip { padding: 8px 12px; gap: 10px; }
+.judge-chip .where { display: block; }
+.judge-chip.free { border-style: dashed; }
+.panel-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+.panel-card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.panel-card.full { border-color: color-mix(in srgb, var(--good) 60%, var(--line)); }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.panel-head h3 { margin: 0; font-size: 20px; }
+.panel-head .pill { margin-left: auto; }
+.seat-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.seat-row select { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 6px 8px; }
+.seat-row .seat-no { width: 26px; text-align: center; font-family: var(--mono); font-weight: 900; color: var(--muted); }
+.seat-row.unused { opacity: .6; }
+
+/* ---------- competition judge pad ---------- */
+.name-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.name-btn { min-height: 64px; font-size: 18px; font-weight: 800; }
+.assign { flex: 1 1 auto; display: grid; place-items: center; padding: 16px; text-align: center; }
+.assign-card, .assign-wait { max-width: 520px; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 20px; }
+.assign-card .label { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.assign-card .plat { font-size: clamp(48px, 16vw, 96px); font-weight: 900; line-height: 1.05; }
+.assign-card .seatno { font-family: var(--mono); font-size: clamp(56px, 18vw, 110px); font-weight: 900; line-height: 1; }
+.assign-card .seatno .muted { font-size: .3em; font-family: var(--font); }
+.assign-card.inactive { border-color: var(--warn); }
+.flash { animation: flash 1.2s ease-out 2; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 18px transparent; } }

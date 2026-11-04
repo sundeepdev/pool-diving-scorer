@@ -57,7 +57,9 @@ For a competition where several groups of divers rotate across boards and platfo
    ```
    Then set each group's **rotation**, for example 2 dives on the 1m, then 2 on the 3m. DD fills in from the World Aquatics table for the height of each round, and changes if the rotation changes. Type a DD to override it.
 
-Live scoring for these competitions (judge panels per platform, platform and head referee screens, scoreboards and the Excel export) is still being built; until then, run each group as its own meet.
+**Judge panels** (`/control?c=CODE`, linked from setup): share the judge link and PIN. Each judge opens `/pad?c=CODE` (or types the code under **Judge** on `/`), enters the PIN and taps their name. Pick a judge for each seat of each platform, or press **Fill empty seats**. A judge sits in one seat at a time, so picking them on another platform moves them, and their pad follows straight away. Each platform uses as many seats as the largest panel (3, 5 or 7) of the groups that dive there. One device per judge: signing in on a new phone replaces the old one. Sign-in pauses for a minute after 10 wrong PINs, and PINs and keys are sent after connecting, never in the URL.
+
+Live scoring for these competitions (platform and head referee screens, scoring on the judge pads, scoreboards and the Excel export) is still being built; until then, run each group as its own meet.
 
 The DD table in `public/ddtable.js` comes from World Aquatics Competition Regulations, Diving Rules, Appendix 9 and 11 (in force from 9 November 2024). `scripts/parse_dd_table.py` rebuilds it from a new edition.
 
