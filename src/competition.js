@@ -30,6 +30,7 @@ function timingSafeEqual(a, b) {
 //   referee: { type: "hello", role: "referee", key }  (head referee key, or a
 //            platform referee key that only controls that platform)
 //   judge:   { type: "hello", role: "judge", pin, judgeId? }
+//   scoreboard: { type: "hello", role: "audience" }
 // A judge without judgeId gets the judge list to pick their name from.
 export class Competition extends DurableObject {
   constructor(ctx, env) {
@@ -264,6 +265,11 @@ export class Competition extends DurableObject {
       this.sendState(ws);
       return this.broadcast(["referee"]);
     }
+    if (msg.role === "audience") {
+      // Scoreboards need no sign-in and only get public information.
+      ws.serializeAttachment({ role: "audience" });
+      return this.sendState(ws);
+    }
     ws.send(JSON.stringify({ type: "error", fatal: true, message: "Unknown role" }));
   }
 
@@ -368,18 +374,62 @@ export class Competition extends DurableObject {
     };
   }
 
+  // What a public scoreboard may see: no PINs, keys or judge names, and
+  // individual scores only once a dive is revealed.
+  audienceView() {
+    const st = this.state;
+    const { setup } = st;
+    const results = {};
+    for (const [k, r] of Object.entries(st.results)) {
+      results[k] = { code: r.code, dd: r.dd, height: r.height, platformId: r.platformId, scores: r.scores, dropped: r.dropped, award: r.award, failed: r.failed };
+    }
+    return {
+      code: st.code,
+      name: setup.name,
+      divers: setup.divers.map(({ id, name, team, groupId }) => ({ id, name, team, groupId })),
+      groups: setup.groups.map((g) => ({ id: g.id, name: g.name, plan: roundPlan(g, setup.platforms) })),
+      platforms: setup.platforms.map((p) => {
+        const l = st.live[p.id] || {};
+        const c = l.current;
+        return {
+          id: p.id,
+          name: p.name,
+          height: p.height,
+          groupId: l.groupId || null,
+          progress: l.groupId ? live.progress(st, l.groupId, p.id) : null,
+          next: live.nextSlot(st, p.id),
+          current: c && {
+            seq: c.seq,
+            diverId: c.diverId,
+            round: c.round,
+            code: c.code,
+            dd: c.dd,
+            height: c.height,
+            phase: c.phase,
+            failed: c.failed,
+            submitted: c.scores.map((v) => v !== null),
+            scores: c.phase === "revealed" ? c.scores : null,
+          },
+        };
+      }),
+      results,
+      standings: Object.fromEntries(setup.groups.map((g) => [g.id, live.groupStandings(st, g.id)])),
+    };
+  }
+
   sendState(ws) {
     const who = ws.deserializeAttachment() ?? {};
     let state;
     if (who.role === "referee") state = this.refereeView(who.scope || "all");
     else if (who.role === "judge") state = this.judgeView(who.judgeId);
+    else if (who.role === "audience") state = this.audienceView();
     else return;
     try {
       ws.send(JSON.stringify({ type: "state", state }));
     } catch {}
   }
 
-  broadcast(roles = ["referee", "judge"]) {
+  broadcast(roles = ["referee", "judge", "audience"]) {
     if (!this.state) return;
     for (const role of roles) for (const ws of this.sockets(role)) this.sendState(ws);
   }

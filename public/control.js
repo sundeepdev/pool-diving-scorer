@@ -5,6 +5,7 @@
 import { $, confirmDialog, esc, fmtDD, fmtPts, fmtScore, liveSocket, store } from "/common.js";
 import { heightLabel } from "/ddtable.js";
 import { describeDive } from "/dives.js";
+import { buildXlsx, competitionSheets } from "/xlsx.js";
 
 const params = new URLSearchParams(location.search);
 const code = (params.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
@@ -91,7 +92,12 @@ function renderShare() {
       <div class="pin">PIN <span class="mono">${esc(state.judgePin)}</span></div>
       <div class="btns"><button class="btn small primary" id="copyJudge">Copy judge invite</button>
       ${navigator.share ? `<button class="btn small" id="shareJudge">Share…</button>` : ""}</div>
-      <p class="muted small">Or on the home page: Judge → code <b class="mono">${esc(code)}</b>.</p></div>${refLinks}`;
+      <p class="muted small">Or on the home page: Judge → code <b class="mono">${esc(code)}</b>.</p></div>
+    <div class="item"><label>Audience scoreboard</label><div class="link mono">${esc(`${location.origin}/show?c=${code}`)}</div>
+      <div class="btns"><button class="btn small" id="copyShow">Copy link</button>
+      <a class="btn small" href="/show?c=${esc(code)}" target="_blank" rel="noopener">Open ↗</a></div>
+      <p class="muted small">All platforms and standings. Pick one platform on the scoreboard for the screen by that pool. No sign-in needed.</p></div>${refLinks}`;
+  $("#copyShow").addEventListener("click", () => copy(`${location.origin}/show?c=${code}`, "Scoreboard link copied"));
   const text = `Judge pad for ${state.name}: ${url}  PIN ${state.judgePin}`;
   $("#copyJudge").addEventListener("click", () => copy(text, "Judge invite copied"));
   $("#shareJudge")?.addEventListener("click", () => navigator.share({ title: state.name, text }).catch(() => {}));
@@ -394,11 +400,23 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") $('#platformView [data-act="reveal"]:not(:disabled)')?.click();
 });
 
+// ---------- Excel ----------
+$("#xlsxBtn").addEventListener("click", () => {
+  if (!state) return;
+  const blob = new Blob([buildXlsx(competitionSheets(state))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${String(state.name || "competition").replace(/[^\w-]+/g, "_")}_results.xlsx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
 // ---------- render ----------
 function render() {
   $("#compName").textContent = isHead() ? state.name : `${state.name} · ${platformName(state.scope)}`;
   document.title = `${state.name} · Control`;
   $("#setupLink").hidden = !isHead();
+  $("#showLink").href = isHead() ? `/show?c=${code}` : `/show?c=${code}&p=${encodeURIComponent(state.scope)}`;
   renderTabs();
   if (tab === "panels") {
     renderShare();

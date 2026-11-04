@@ -115,3 +115,87 @@ test("results workbook: standings, rounds, all dives and divers", () => {
   const dv = cells(files["xl/worksheets/sheet5.xml"]);
   assert.deepEqual([dv.A1, dv.C1, dv.D1, dv.A3, dv.E3, dv.F3, dv.A4], ["Name", "Dive 1", "DD 1", "Ben", "301B", 1.6, "Cal"]);
 });
+
+import { cleanPanels, normalizeSetup, roundPlan } from "../public/competition-model.js";
+import { callNext, cleanLive, groupStandings, judgeScore, startGroup } from "../src/live.js";
+import { competitionSheets } from "../public/xlsx.js";
+
+test("competition workbook: standings per group, all dives with judge names, divers, judges", () => {
+  const setup = normalizeSetup({
+    name: "Club Champs",
+    platforms: [
+      { id: "p1", name: "1m", height: "1" },
+      { id: "p3", name: "3m", height: "3" },
+    ],
+    judges: [
+      { id: "ja", name: "Alex" },
+      { id: "jb", name: "Sam" },
+      { id: "jc", name: "Jo" },
+    ],
+    groups: [{ id: "g1", name: "Girls 12-13", panel: 3, legs: [{ platformId: "p1", dives: 1 }, { platformId: "p3", dives: 1 }] }],
+    divers: [
+      { id: "d1", name: "Ana", team: "EDC", groupId: "g1", dives: [{ code: "101B" }, { code: "101B" }], extra: ["103C"] },
+      { id: "d2", name: "Mia", team: "EDC", groupId: "g1", dives: [{ code: "103C" }, { code: "201B" }] },
+    ],
+  });
+  const state = { code: "ABC123", setup, panels: cleanPanels({ p1: ["ja", "jb", "jc"], p3: ["jc"] }, setup) };
+  cleanLive(state);
+  startGroup(state, "p1", "g1");
+  for (const v of [6, 7]) {
+    callNext(state, "p1");
+    [v, v, v].forEach((x, i) => judgeScore(state, "p1", i + 1, state.live.p1.current.seq, x));
+  }
+  const view = {
+    code: state.code,
+    name: setup.name,
+    platforms: setup.platforms,
+    judges: setup.judges,
+    groups: setup.groups.map((g) => ({ ...g, plan: roundPlan(g, setup.platforms) })),
+    divers: setup.divers,
+    panels: state.panels,
+    results: state.results,
+    standings: { g1: groupStandings(state, "g1") },
+  };
+  const sheets = competitionSheets(view, { exportedAt: new Date("2026-11-04T10:00:00Z") });
+  assert.deepEqual(
+    sheets.map((s) => s.name),
+    ["Summary", "Girls 12-13", "All dives", "Divers", "Judges"],
+  );
+  const files = unzip(buildXlsx(sheets));
+  const summary = cells(files["xl/worksheets/sheet1.xml"]);
+  assert.equal(summary.B1, "Club Champs");
+  assert.equal(summary.D6, "1m × 1 → 3m × 1");
+
+  const st = cells(files["xl/worksheets/sheet2.xml"]);
+  assert.equal(st.D1, "D1 1m");
+  assert.equal(st.E1, "D2 3m");
+  assert.equal(st.B2, "Mia", "Mia leads: 21 × 1.6 beats 18 × 1.3");
+  assert.equal(st.D2, 33.6);
+  assert.equal(st.B3, "Ana");
+  assert.equal(st.D3, 23.4);
+
+  const all = cells(files["xl/worksheets/sheet3.xml"]);
+  assert.equal(all.K1, "S1 judge");
+  assert.equal(all.L1, "S1");
+  assert.equal(all.C2, "Mia");
+  assert.equal(all.F2, "1m");
+  assert.equal(all.G2, "1m");
+  assert.equal(all.H2, "103C");
+  assert.equal(all.K2, "Alex");
+  assert.equal(all.L2, 7);
+  assert.equal(all.O2, "Jo");
+  assert.equal(all.Q2, 33.6, "points after the 3 seat pairs");
+
+  const divers = cells(files["xl/worksheets/sheet4.xml"]);
+  assert.equal(divers.C2, "Girls 12-13");
+  assert.equal(divers.D2, "101B");
+  assert.equal(divers.E2, 1.3);
+  assert.equal(divers.H2, "103C");
+
+  const judges = cells(files["xl/worksheets/sheet5.xml"]);
+  assert.equal(judges.A2, "Alex");
+  assert.equal(judges.B2, "1m");
+  assert.equal(judges.C2, 2);
+  assert.equal(judges.A4, "Jo");
+  assert.equal(judges.D4, "1m S3", "where Jo sits now (a judge has one seat, so the 3m seat was dropped)");
+});
