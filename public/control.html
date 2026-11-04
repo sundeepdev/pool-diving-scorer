@@ -17,7 +17,11 @@
   <a class="btn small" id="setupLink">Setup</a>
 </header>
 
+<nav class="tabs" id="tabs" hidden></nav>
+
 <main class="wrap" id="app" hidden>
+  <div id="platformView" hidden></div>
+  <div id="panelsView">
   <section class="card">
     <div class="card-head">
       <div><h2>Judges <span class="muted" id="judgeCount"></span></h2>
@@ -38,7 +42,15 @@
     </div>
     <div class="panel-grid" id="panels"></div>
   </section>
+  </div>
 </main>
+
+<dialog id="scoreDlg">
+  <h2 style="margin:0" id="dlgTitle">Set score</h2>
+  <p class="muted" style="margin:4px 0 0">Overrides what the judge entered.</p>
+  <div class="score-grid" id="dlgGrid"></div>
+  <div class="row"><button class="btn danger" id="dlgClear">Clear score</button><button class="btn" id="dlgCancel">Cancel</button></div>
+</dialog>
 
 <main class="wrap hidden" id="noKey" style="max-width:520px">
   <section class="card" style="margin-top:24px">

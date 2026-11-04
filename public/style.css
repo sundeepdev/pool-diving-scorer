@@ -476,3 +476,14 @@ details[open] > summary::before { content: "▾ "; }
 .assign-card.inactive { border-color: var(--warn); }
 .flash { animation: flash 1.2s ease-out 2; }
 @keyframes flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 18px transparent; } }
+
+/* ---------- competition control: platform tab ---------- */
+.group-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.group-bar label { margin: 0; font-size: 15px; font-weight: 800; text-transform: none; letter-spacing: 0; color: var(--text); }
+.group-bar select { flex: 1 1 260px; min-height: 48px; font-size: 16px; font-weight: 700; }
+.stack { display: grid; gap: 16px; align-content: start; }
+.dive-edit .field { flex: 1 1 120px; }
+/* Competition pad: the platform/seat card fills the pad until scoring starts. */
+.pad-main.assign-mode { grid-template-rows: 1fr; grid-template-columns: 1fr; }
+.dive-card .seatline { font-size: 13px; color: var(--muted); font-weight: 700; }
+.dive-card .edit-dive { margin-left: auto; }
