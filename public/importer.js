@@ -3,6 +3,9 @@
 //   Name, Team, 105B, 2.4, 203C, 2.0, ...      (code and DD in separate columns)
 //   Name, Team, 105B 2.4, 203C 2.0, ...        (code and DD in one cell)
 //   Name, 105B 2.4, ...                        (no team)
+//   Name, Team, Group, 105B, 203C, ...          (group / age group, DD optional)
+// With a header row, a "Group" (or Category, Age group, Level) column and an
+// "Other dives" (or Can also do, Repertoire) column are also recognised.
 
 const CODE = /^\d{3,4}[A-D]$/i;
 const NUM = /^\d(?:[.,]\d{1,2})?$/;
@@ -69,10 +72,12 @@ function parseDive(code, dd, where, warnings) {
 // matched by name, so an empty round stays empty instead of shifting.
 function headerLayout(cells) {
   if (!/^(name|diver|athlete|competitor)\b/i.test(cells[0] ?? "")) return null;
-  const layout = { team: -1, rounds: [] };
+  const layout = { team: -1, group: -1, extra: -1, rounds: [] };
   cells.forEach((h, col) => {
     let m;
     if (/^(team|club|country|nation|noc)/i.test(h)) layout.team = col;
+    else if (/^(group|category|age ?group|level|flight|squad)/i.test(h)) layout.group = col;
+    else if (/^(other dives|can also|repertoire|dive list|extra|spare)/i.test(h)) layout.extra = col;
     else if ((m = h.match(/^(?:dive|code)\s*#?\s*(\d+)$/i))) (layout.rounds[m[1] - 1] ??= {}).code = col;
     else if ((m = h.match(/^(?:dd|dod|difficulty)\s*#?\s*(\d+)$/i))) (layout.rounds[m[1] - 1] ??= {}).dd = col;
   });
@@ -90,7 +95,13 @@ export function rowsToDivers(rows) {
     if (!name) return warnings.push(`Row ${idx + 1}: no name — skipped`);
     const where = `Row ${idx + 1} (${name})`;
     let team = "";
+    let group = "";
+    let extra = [];
     let dives = [];
+    if (layout) {
+      group = layout.group >= 0 ? cells[layout.group] ?? "" : "";
+      if (layout.extra >= 0) extra = parseExtra(cells[layout.extra] ?? "", where, warnings);
+    }
     if (layout && layout.rounds.length) {
       team = layout.team >= 0 ? cells[layout.team] ?? "" : "";
       dives = Array.from(layout.rounds, (cols) => {
@@ -101,6 +112,7 @@ export function rowsToDivers(rows) {
     } else {
       let i = 1;
       if (i < cells.length && !looksLikeDive(cells[i])) team = cells[i++];
+      if (!layout && i < cells.length && cells[i] && !looksLikeDive(cells[i]) && !NUM.test(cells[i])) group = cells[i++];
       while (i < cells.length) {
         const c = cells[i];
         if (!c) {
@@ -113,9 +125,21 @@ export function rowsToDivers(rows) {
         i += pairsWithNext ? 2 : 1;
       }
     }
-    divers.push({ name: name.slice(0, 60), team: team.slice(0, 40), dives });
+    const diver = { name: name.slice(0, 60), team: team.slice(0, 40), dives };
+    if (group) diver.group = group.slice(0, 60);
+    if (extra.length) diver.extra = extra;
+    divers.push(diver);
   });
   return { divers, warnings };
+}
+
+function parseExtra(cell, where, warnings) {
+  const out = [];
+  for (const tok of String(cell).split(/[\s,;/]+/).filter(Boolean)) {
+    if (CODE.test(tok)) out.push(tok.toUpperCase());
+    else warnings.push(`${where}: "${tok}" in other dives isn't a dive number — ignored`);
+  }
+  return out;
 }
 
 export function parseImport(text) {
@@ -127,5 +151,21 @@ export function diversToCsv(divers, rounds) {
   const n = Math.max(rounds, ...divers.map((d) => d.dives.length));
   const header = ["Name", "Team", ...Array.from({ length: n }, (_, r) => [`Dive ${r + 1}`, `DD ${r + 1}`]).flat()];
   const lines = divers.map((d) => [d.name, d.team, ...Array.from({ length: n }, (_, r) => [d.dives[r]?.code ?? "", d.dives[r]?.dd || ""]).flat()]);
+  return [header, ...lines].map((l) => l.map(q).join(",")).join("\r\n") + "\r\n";
+}
+
+// Competition diver list: Name, Team, Group, Dive 1, DD 1, ..., Other dives.
+export function competitionDiversToCsv(divers, groups) {
+  const q = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ""));
+  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+  const n = Math.max(1, ...divers.map((d) => d.dives.length));
+  const header = ["Name", "Team", "Group", ...Array.from({ length: n }, (_, r) => [`Dive ${r + 1}`, `DD ${r + 1}`]).flat(), "Other dives"];
+  const lines = divers.map((d) => [
+    d.name,
+    d.team,
+    groupName.get(d.groupId) ?? "",
+    ...Array.from({ length: n }, (_, r) => [d.dives[r]?.code ?? "", d.dives[r]?.dd && !d.dives[r]?.auto ? d.dives[r].dd : ""]).flat(),
+    (d.extra || []).join(" "),
+  ]);
   return [header, ...lines].map((l) => l.map(q).join(",")).join("\r\n") + "\r\n";
 }

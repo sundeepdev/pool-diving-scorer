@@ -412,3 +412,39 @@ details[open] > summary::before { content: "▾ "; }
   .dive-cell .desc { max-width: none; font-size: 12px; }
   .icon-btn { width: 44px; height: 44px; }
 }
+
+/* ---------- competition setup ---------- */
+.comp-step { margin-top: 16px; }
+.step { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 15px; font-weight: 900; margin-right: 10px; vertical-align: 2px; }
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 6px 6px 6px 8px; }
+.chip input { min-height: 38px; padding: 6px 8px; border-radius: 8px; width: 170px; }
+.chip.plat input { width: 120px; }
+.chip select { min-height: 38px; padding: 6px 8px; border-radius: 8px; }
+.empty-note { margin: 12px 0 0; }
+.judge-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 8px; }
+.judge-add textarea { flex: 1 1 260px; min-height: 76px; }
+.judge-add .btn { flex: 0 0 auto; }
+.group-card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-top: 14px; }
+.group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.group-head h3 { margin: 0; font-size: 17px; }
+.group-head .gname { flex: 0 1 260px; font-weight: 800; font-size: 17px; min-height: 42px; }
+.group-head .inline { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.group-head .inline select { min-height: 38px; padding: 4px 8px; }
+.group-head .spacer { flex: 1 1 0; }
+.rotation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 6px; padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); }
+.rotation .label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 4px; }
+.rotation .leg { display: inline-flex; align-items: center; gap: 6px; }
+.rotation .leg select { min-height: 38px; padding: 4px 8px; }
+.rotation .leg input { width: 58px; min-height: 38px; padding: 4px 8px; font-family: var(--mono); }
+.rotation .arrow, .rotation .x { color: var(--muted); font-weight: 800; }
+.dive-cell .ddin.auto { color: var(--muted); font-style: italic; }
+.dive-cell.beyond .code, .dive-cell.beyond .ddin { border-color: var(--warn); }
+.divers-table .extra { min-width: 130px; font-family: var(--mono); text-transform: uppercase; }
+.divers-table .acts { white-space: nowrap; }
+.divers-table .acts .move { min-height: 38px; padding: 4px 6px; max-width: 130px; font-size: 13px; }
+@media (max-width: 720px) {
+  .divers-table td.extra-cell { order: 4; flex: 1 1 100%; padding-left: 32px; }
+  .divers-table td.extra-cell::before { content: "Other dives"; display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .group-head .gname { flex: 1 1 100%; }
+}
