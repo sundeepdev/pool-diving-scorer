@@ -1,6 +1,7 @@
 import { $, $$, api, confirmDialog, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
 import { describeDive } from "/dives.js";
 import { createSetup } from "/setup.js";
+import { buildXlsx, resultsSheets } from "/xlsx.js";
 
 const code = meetCodeFromUrl();
 if (!code) location.href = "/";
@@ -249,12 +250,20 @@ $("#csvBtn").addEventListener("click", () => {
       lines.push([s.rank, d.name, d.team, r + 1, res.code, describeDive(res.code), res.dd, ...scores, fmtPts(res.award), res.failed ? "yes" : "", fmtPts(s.total)].map(q).join(","));
     }
   }
+  saveFile(new Blob([lines.join("\n")], { type: "text/csv" }), "csv");
+});
+
+$("#xlsxBtn").addEventListener("click", () => {
+  saveFile(new Blob([buildXlsx(resultsSheets(state))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+});
+
+function saveFile(blob, ext) {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-  a.download = `${state.name.replace(/[^\w-]+/g, "_")}_${code}_results.csv`;
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.name.replace(/[^\w-]+/g, "_")}_${code}_results.${ext}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
+}
 
 // ---------- wiring ----------
 function render() {

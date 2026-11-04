@@ -13,7 +13,7 @@ Real-time scoring for springboard and platform diving, running on **Cloudflare W
 | `/` | everyone | Join as judge, open the scoreboard, or create a meet |
 | `/judge?meet=CODE` | judges | Big keypad: **tap the score → (optional +½) → SEND**. Works on phones and tablets (portrait or landscape) and with a keyboard (`7` `.` `Enter`; `1` `0` for 10). Can change the score until it is revealed. Keeps the screen awake, vibrates on new dive, queues the score if Wi-Fi drops and re-sends on reconnect. Light high-contrast mode (☀︎) for outdoor pools. |
 | `/live?meet=CODE` | audience / big screen | Current diver, dive number + description, DD, judge-by-judge "in" ticks, then animated score reveal (dropped scores struck through), dive points, total, position, live standings. Full-screen button for projectors. |
-| `/referee?meet=CODE` | admin / referee | Two tabs. **Competition setup**: event details, judges, rounds, and the diver list. Add, edit, reorder, draw or remove divers; import them from CSV or a spreadsheet paste; export them to CSV. Also has share links for the audience, judges and referee. **Live control**: call divers, edit the dive or DD, see every judge's score and connection, override a score, reveal, mark a failed dive, re-open, running-order grid, results CSV. |
+| `/referee?meet=CODE` | admin / referee | Two tabs. **Competition setup**: event details, judges, rounds, and the diver list. Add, edit, reorder, draw or remove divers; import them from CSV or a spreadsheet paste; export them to CSV. Also has share links for the audience, judges and referee. **Live control**: call divers, edit the dive or DD, see every judge's score and connection, override a score, reveal, mark a failed dive, re-open, running-order grid, results download as CSV or Excel (`.xlsx`). |
 
 ## Scoring rules (World Aquatics, individual events)
 
@@ -40,7 +40,9 @@ Synchronised diving panels (9/11 judges) are not supported.
 3. **Share**: **Copy link** or **Share…** sends the audience scoreboard (no sign-in needed). **Copy judge invite** copies the judge link with the PIN.
 4. Switch to **Live control** and press **Call next** (or `N`). Judge pads unlock. When every judge has sent a score, the result appears automatically, or press **Reveal** (`R`) if auto-reveal is turned off in setup.
 
-The referee key is saved in the browser that created the meet. Use **Copy referee link** to open the control panel on another device. Meet data is deleted automatically 90 days after creation, so download the results CSV if you want to keep them.
+The referee key is saved in the browser that created the meet. Use **Copy referee link** to open the control panel on another device. Meet data is deleted automatically 90 days after creation, so download the results (CSV or Excel) if you want to keep them.
+
+**Download results (Excel)** on the Live control tab saves a real `.xlsx` workbook with sheets for **Standings** (rank, points per round, total), one sheet per **Round**, **All dives** (the same columns as the CSV) and **Divers** (the diver list, in the import/export format). Scores, DD and points are stored as numbers, so totals and formulas work straight away in Excel, Numbers, LibreOffice or Google Sheets (File → Import).
 
 ## Develop
 
@@ -77,6 +79,7 @@ browser ──HTTP──▶ Worker (src/index.js) ──▶ static assets (publi
   * the **referee** sees everything.
 * Judges authenticate with the 4-digit meet PIN and the referee with a random 24-character key.
 * `public/importer.js` holds the CSV/spreadsheet import parser, unit-tested in `test/`.
+* `public/xlsx.js` builds the Excel download in the browser: a small dependency-free SpreadsheetML/ZIP writer plus the results workbook layout, unit-tested in `test/`.
 * `src/scoring.js` holds the pure scoring rules, unit-tested in `test/`.
 
 ## License
