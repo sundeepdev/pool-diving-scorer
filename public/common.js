@@ -81,7 +81,10 @@ export async function api(path, body) {
 // Meets pass code/role/judge/key, which go in the URL. Competitions pass
 // `path` and a `hello()` function whose result is sent as the first message,
 // so credentials stay out of the URL. Call stop() to give up reconnecting.
-export const SOCKET_TIMING = { connectTimeout: 8000, pingEvery: 5000, deadAfter: 12000 };
+// Tuned to feel instant at the pool: retries are cheap (while offline they
+// never reach the server) and a few judge phones pinging every 3 s cost
+// next to nothing. Battery matters less than a judge waiting.
+export const SOCKET_TIMING = { connectTimeout: 5000, pingEvery: 3000, deadAfter: 8000, maxBackoff: 2000 };
 
 export function liveSocket({ code, role, judge, key, path, hello, onState, onMessage, onStatus }) {
   let stopped = false;
@@ -144,7 +147,7 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
       clearTimeout(connectGuard);
       if (stopped) return;
       onStatus?.("offline");
-      timer = setTimeout(open, Math.min(8000, 400 * 2 ** retry++));
+      timer = setTimeout(open, Math.min(SOCKET_TIMING.maxBackoff, 250 * 2 ** retry++));
     };
   }
 
@@ -158,6 +161,19 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
     if (!stopped && !document.hidden && (!ws || ws.readyState !== WebSocket.OPEN || Date.now() - lastSeen > SOCKET_TIMING.deadAfter)) open();
   });
   window.addEventListener("online", () => !stopped && open());
+
+  // Any tap or key press checks the connection: if it's down, try again now
+  // instead of waiting for the next retry; if it has been quiet, ping it.
+  function nudge() {
+    if (stopped) return;
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) return open();
+    if (ws.readyState !== WebSocket.OPEN) return;
+    const quiet = Date.now() - lastSeen;
+    if (quiet > SOCKET_TIMING.deadAfter) open();
+    else if (quiet > SOCKET_TIMING.pingEvery) ws.send("ping");
+  }
+  document.addEventListener("pointerdown", nudge, { passive: true });
+  document.addEventListener("keydown", nudge);
 
   open();
   return {
@@ -176,6 +192,10 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
         return true;
       }
       return false;
+    },
+    // Milliseconds since anything (state, ack, pong) arrived from the server.
+    get quietFor() {
+      return Date.now() - lastSeen;
     },
     get isOpen() {
       return !!ws && ws.readyState === WebSocket.OPEN;
