@@ -6,6 +6,7 @@
 import { $, esc, fmtDD, fmtPts, fmtScore, liveSocket, store } from "/common.js";
 import { heightLabel } from "/ddtable.js";
 import { describeDive } from "/dives.js";
+import { ACK_TIMEOUT_MS, pendingStatus, reconcile, restorable } from "/outbox.js";
 
 const clean = (v) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 let code = clean(new URLSearchParams(location.search).get("c"));
@@ -17,8 +18,10 @@ let lastSeat = null;
 let lastSeq = null;
 let whole = null; // selected whole number, or null
 let half = false;
-let pending = null; // { seq, value, ref } sent but not yet acknowledged
-let ref = 0;
+let pending = null; // { seq, value, ref, sentAt } sent but not yet acknowledged (see outbox.js)
+let ref = Date.now(); // unique across reloads, so a late ack can't match the wrong score
+let ackTimer = null;
+let resendOnState = false; // after (re)connecting, re-send the pending score once the state arrives
 
 const selection = () => (whole === null ? null : whole + (half ? 0.5 : 0));
 const buzz = (ms) => navigator.vibrate?.(ms);
@@ -146,14 +149,51 @@ function toggleHalf() {
   render();
 }
 
+// ---------- pending score: survives reconnects and reloads ----------
+const pendingKey = () => `pending:${code}:${creds?.judgeId}`;
+
+function setPending(p) {
+  pending = p;
+  clearTimeout(ackTimer);
+  if (p) store.set(pendingKey(), { seq: p.seq, value: p.value, ref: p.ref, savedAt: Date.now() });
+  else store.remove(pendingKey());
+}
+
+function transmit() {
+  if (!pending) return;
+  pending.sentAt = Date.now();
+  pending.firstSentAt ??= pending.sentAt;
+  clearTimeout(ackTimer);
+  if (sock.send({ type: "score", seq: pending.seq, value: pending.value, ref: pending.ref })) {
+    resendOnState = false;
+  } else resendOnState = true;
+  watchAck();
+}
+
+// No ack in time: the connection is probably dead even though it looks open.
+// Reconnect (the score is re-sent once the fresh state arrives) and keep
+// checking until the score is confirmed or no longer needed.
+function watchAck() {
+  clearTimeout(ackTimer);
+  ackTimer = setTimeout(() => {
+    if (!pending) return;
+    if (online) {
+      resendOnState = true;
+      sock.reconnect();
+    }
+    if (state) render();
+    watchAck();
+  }, ACK_TIMEOUT_MS);
+}
+
 function sendScore() {
   const value = selection();
   if (value === null || !canScore()) return;
-  const seq = state.current.seq;
-  pending = { seq, value, ref: ++ref };
+  setPending({ seq: state.current.seq, value, ref: ++ref });
   whole = null;
   half = false;
-  if (!sock.send({ type: "score", seq, value, ref: pending.ref })) toast("Offline. Your score will be sent when you're back online.");
+  transmit();
+  if (!online) toast("Offline. Your score will be sent when you're back online.");
   buzz(25);
   render();
 }
@@ -252,7 +292,7 @@ function renderScoring() {
   let status = "";
   if (pending) {
     value = fmtScore(pending.value);
-    status = online ? "Sending…" : "Queued. Offline";
+    status = pendingStatus(pending, { online, now: Date.now() });
   } else if (sel !== null) {
     value = fmtScore(sel);
     status = mine === null ? "Tap SEND" : `Sent ${fmtScore(mine)} · tap UPDATE`;
@@ -283,8 +323,8 @@ function renderScoring() {
   }
 
   const btn = $("#sendBtn");
-  btn.disabled = !scoring || sel === null || !!pending;
-  btn.textContent = !scoring ? "LOCKED" : sel === null ? (mine !== null ? "SENT ✓" : "SEND") : `${mine === null ? "SEND" : "UPDATE"} ${fmtScore(sel)}`;
+  btn.disabled = !scoring || sel === null;
+  btn.textContent = !scoring ? "LOCKED" : sel === null ? (pending ? "SENDING…" : mine !== null ? "SENT ✓" : "SEND") : `${mine === null ? "SEND" : "UPDATE"} ${fmtScore(sel)}`;
 }
 
 function render() {
@@ -323,9 +363,13 @@ function onState(s) {
     lastSeq = seq;
     whole = null;
     half = false;
-    if (pending && pending.seq !== seq) pending = null;
   }
-  if (pending && s.current?.myScore === pending.value) pending = null;
+  const action = reconcile(pending, s.current && { seq: s.current.seq, phase: s.current.phase, myScore: s.current.myScore });
+  if (action === "done" || action === "drop") setPending(null);
+  else if (action === "resend" && resendOnState) {
+    resendOnState = false;
+    transmit();
+  }
   render();
 }
 
@@ -344,20 +388,18 @@ function connect() {
     path: `/api/competitions/${code}/ws`,
     hello: () => ({ type: "hello", role: "judge", ...creds }),
     onStatus(st) {
+      // A pending score is re-sent once signed in again (after the state arrives).
+      if (st !== "online") resendOnState = true;
       setStatus(st);
-      // A score queued while offline is re-sent once signed in again (after the state arrives).
+      if (state) render();
     },
-    onState(s) {
-      const resend = pending && s.current?.myScore == null && s.current?.seq === pending.seq && s.current.phase === "scoring";
-      onState(s);
-      if (resend) sock.send({ type: "score", seq: pending.seq, value: pending.value, ref: pending.ref });
-    },
+    onState,
     onMessage(msg) {
       if (msg.type === "chooseJudge") {
         store.set(`pad:${code}`, creds);
         showPicker(msg);
       } else if (msg.type === "ack" && pending && msg.ref === pending.ref) {
-        pending = null;
+        setPending(null);
         if (state) render();
       } else if (msg.type === "replaced") {
         sock.stop();
@@ -374,7 +416,7 @@ function connect() {
         store.remove(`pad:${code}`);
         showJoin(msg.message);
       } else if (msg.type === "error") {
-        if (pending && msg.ref === pending.ref) pending = null;
+        if (pending && msg.ref === pending.ref) setPending(null);
         toast(msg.message);
         if (state) render();
       }
@@ -382,5 +424,13 @@ function connect() {
   });
 }
 
-if (code && creds?.pin) connect();
+if (code && creds?.pin) {
+  // A score sent just before a reload (judges often refresh when stuck) is re-sent if still needed.
+  const saved = creds.judgeId ? restorable(store.get(pendingKey()), Date.now()) : null;
+  if (saved) {
+    pending = saved;
+    resendOnState = true;
+  }
+  connect();
+}
 else showJoin();

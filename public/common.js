@@ -73,22 +73,27 @@ export async function api(path, body) {
   return data;
 }
 
-// Self-healing WebSocket: reconnects with backoff, detects dead connections
-// (common on poolside Wi-Fi) with a ping watchdog, and reconnects when the
-// tab becomes visible again.
+// Self-healing WebSocket: reconnects with backoff, gives up on a connection
+// attempt that hangs, detects dead connections (common on poolside Wi-Fi: the
+// socket still looks open but nothing gets through) with a ping watchdog, and
+// reconnects when the tab becomes visible again or the device comes back online.
 //
 // Meets pass code/role/judge/key, which go in the URL. Competitions pass
 // `path` and a `hello()` function whose result is sent as the first message,
 // so credentials stay out of the URL. Call stop() to give up reconnecting.
+export const SOCKET_TIMING = { connectTimeout: 8000, pingEvery: 5000, deadAfter: 12000 };
+
 export function liveSocket({ code, role, judge, key, path, hello, onState, onMessage, onStatus }) {
   let stopped = false;
   let ws = null;
   let retry = 0;
   let timer = null;
   let lastSeen = 0;
+  let connectGuard = null;
 
   function open() {
     clearTimeout(timer);
+    clearTimeout(connectGuard);
     if (ws) {
       ws.onclose = ws.onmessage = ws.onopen = null;
       try {
@@ -107,13 +112,28 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
     }
     const sock = (ws = new WebSocket(url));
     onStatus?.("connecting");
+    // On bad Wi-Fi a connection attempt can hang for minutes without failing.
+    connectGuard = setTimeout(() => {
+      if (ws !== sock || sock.readyState !== WebSocket.CONNECTING) return;
+      onStatus?.("offline");
+      open();
+    }, SOCKET_TIMING.connectTimeout);
     sock.onopen = () => {
+      clearTimeout(connectGuard);
       retry = 0;
       lastSeen = Date.now();
       if (hello) sock.send(JSON.stringify(hello()));
       onStatus?.("online");
+      // The server always answers a new connection with the state. If nothing
+      // arrives, the link is dead even though it opened.
+      connectGuard = setTimeout(() => {
+        if (ws === sock && !heard) open();
+      }, SOCKET_TIMING.connectTimeout);
     };
+    let heard = false;
     sock.onmessage = (e) => {
+      heard = true;
+      clearTimeout(connectGuard);
       lastSeen = Date.now();
       if (e.data === "pong") return;
       const msg = JSON.parse(e.data);
@@ -121,6 +141,7 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
       else onMessage?.(msg);
     };
     sock.onclose = () => {
+      clearTimeout(connectGuard);
       if (stopped) return;
       onStatus?.("offline");
       timer = setTimeout(open, Math.min(8000, 400 * 2 ** retry++));
@@ -128,21 +149,22 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
   }
 
   setInterval(() => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (Date.now() - lastSeen > 30000) return open();
+    if (stopped || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - lastSeen > SOCKET_TIMING.deadAfter) return open();
     ws.send("ping");
-  }, 10000);
+  }, SOCKET_TIMING.pingEvery);
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN || Date.now() - lastSeen > 15000)) open();
+    if (!stopped && !document.hidden && (!ws || ws.readyState !== WebSocket.OPEN || Date.now() - lastSeen > SOCKET_TIMING.deadAfter)) open();
   });
-  window.addEventListener("online", () => open());
+  window.addEventListener("online", () => !stopped && open());
 
   open();
   return {
     stop() {
       stopped = true;
       clearTimeout(timer);
+      clearTimeout(connectGuard);
       try {
         ws?.close();
       } catch {}
