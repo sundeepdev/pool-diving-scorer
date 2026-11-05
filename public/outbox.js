@@ -7,7 +7,7 @@
 // equals it. If no ack arrives within ACK_TIMEOUT_MS the connection is treated
 // as dead: the pad reconnects and re-sends after the next state.
 
-export const ACK_TIMEOUT_MS = 5000;
+export const ACK_TIMEOUT_MS = 3000;
 // A pending score older than this is not restored after a page reload.
 export const MAX_RESTORE_AGE_MS = 10 * 60 * 1000;
 

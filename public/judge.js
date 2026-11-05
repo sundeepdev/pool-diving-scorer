@@ -182,13 +182,15 @@ function transmit() {
   watchAck();
 }
 
-// No ack in time: the connection is probably dead even though it looks open.
-// Reconnect (the score is re-sent once the fresh state arrives) and keep
-// checking until the score is confirmed or no longer needed.
+// No ack in time. If the server has been quiet too, the connection is dead
+// even though it looks open: reconnect (the score is re-sent once the fresh
+// state arrives). If it is still talking, just send again. Keep checking until
+// the score is confirmed or no longer needed.
 function watchAck() {
   clearTimeout(ackTimer);
   ackTimer = setTimeout(() => {
     if (!pending) return;
+    if (online && sock.quietFor < ACK_TIMEOUT_MS) return transmit();
     if (online) {
       resendOnState = true;
       sock.reconnect();
