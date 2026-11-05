@@ -11,7 +11,7 @@ Real-time scoring for springboard and platform diving, running on **Cloudflare W
 | URL | Who | What |
 |---|---|---|
 | `/` | everyone | Join as judge, open the scoreboard, or create a meet |
-| `/judge?meet=CODE` | judges | Big keypad: **tap the score → (optional +½) → SEND**. Works on phones and tablets (portrait or landscape) and with a keyboard (`7` `.` `Enter`; `1` `0` for 10). Can change the score until it is revealed. Keeps the screen awake, vibrates on new dive, queues the score if Wi-Fi drops and re-sends on reconnect. Light high-contrast mode (☀︎) for outdoor pools. |
+| `/judge?meet=CODE` | judges | Big keypad: **tap the score → (optional +½) → SEND**. Works on phones and tablets (portrait or landscape) and with a keyboard (`7` `.` `Enter`; `1` `0` for 10). Can change the score until it is revealed. Keeps the screen awake, vibrates on new dive, keeps an unconfirmed score through Wi-Fi drops and page reloads and re-sends it until the server confirms it (see *Poolside Wi-Fi* below). Light high-contrast mode (☀︎) for outdoor pools. |
 | `/live?meet=CODE` | audience / big screen | Current diver, dive number + description, DD, judge-by-judge "in" ticks, then animated score reveal (dropped scores struck through), dive points, total, position, live standings. Full-screen button for projectors. |
 | `/referee?meet=CODE` | admin / referee | Two tabs. **Competition setup**: event details, judges, rounds, and the diver list. Add, edit, reorder, draw or remove divers; import them from CSV or a spreadsheet paste; export them to CSV. Also has share links for the audience, judges and referee. **Live control**: call divers, edit the dive or DD, see every judge's score and connection, override a score, reveal, mark a failed dive, re-open, running-order grid, results download as CSV or Excel (`.xlsx`). |
 
@@ -110,6 +110,7 @@ browser ──HTTP──▶ Worker (src/index.js) ──▶ static assets (publi
   * the **referee** sees everything.
 * Judges authenticate with the 4-digit meet PIN and the referee with a random 24-character key.
 * `public/importer.js` holds the CSV/spreadsheet import parser, unit-tested in `test/`.
+* **Poolside Wi-Fi:** `liveSocket` in `public/common.js` reconnects with backoff, gives up on a connection attempt after 8 s, and treats a connection as dead if it hears nothing for 12 s (pings every 5 s), which catches phones whose Wi-Fi dropped while the socket still looks open. A judge's score stays pending until the server acks it. With no ack within 5 s the pad reconnects and re-sends it after the fresh state, and keeps trying until it's confirmed or the dive has moved on. Pending scores are saved in the browser, so a reload re-sends them. The decisions live in `public/outbox.js`, unit-tested in `test/`.
 * `public/xlsx.js` builds the Excel download in the browser: a small dependency-free SpreadsheetML/ZIP writer plus the results workbook layout, unit-tested in `test/`.
 * `src/scoring.js` holds the pure scoring rules, unit-tested in `test/`.
 

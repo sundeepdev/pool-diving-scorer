@@ -1,5 +1,6 @@
 import { $, api, confirmDialog, diverById, esc, fmtDD, fmtPts, fmtScore, liveSocket, meetCodeFromUrl, store } from "/common.js";
 import { describeDive } from "/dives.js";
+import { ACK_TIMEOUT_MS, pendingStatus, reconcile, restorable } from "/outbox.js";
 
 let code = meetCodeFromUrl();
 let creds = null;
@@ -8,9 +9,11 @@ let state = null;
 let online = false;
 let whole = null; // selected whole number, or null
 let half = false;
-let pending = null; // { seq, value } sent but not yet acknowledged
+let pending = null; // { seq, value, ref, sentAt } sent but not yet acknowledged (see outbox.js)
 let lastSeq = null;
-let ref = 0;
+let ref = Date.now(); // unique across reloads, so a late ack can't match the wrong score
+let ackTimer = null;
+let resendOnState = false; // after (re)connecting, re-send the pending score once the state arrives
 
 const selection = () => (whole === null ? null : whole + (half ? 0.5 : 0));
 const buzz = (ms) => navigator.vibrate?.(ms);
@@ -158,14 +161,51 @@ function toggleHalf() {
   render();
 }
 
+// ---------- pending score: survives reconnects and reloads ----------
+const pendingKey = () => `pending:${code}:judge-${creds?.judge}`;
+
+function setPending(p) {
+  pending = p;
+  clearTimeout(ackTimer);
+  if (p) store.set(pendingKey(), { seq: p.seq, value: p.value, ref: p.ref, savedAt: Date.now() });
+  else store.remove(pendingKey());
+}
+
+function transmit() {
+  if (!pending) return;
+  pending.sentAt = Date.now();
+  pending.firstSentAt ??= pending.sentAt;
+  clearTimeout(ackTimer);
+  if (sock.send({ type: "score", seq: pending.seq, value: pending.value, ref: pending.ref })) {
+    resendOnState = false;
+  } else resendOnState = true;
+  watchAck();
+}
+
+// No ack in time: the connection is probably dead even though it looks open.
+// Reconnect (the score is re-sent once the fresh state arrives) and keep
+// checking until the score is confirmed or no longer needed.
+function watchAck() {
+  clearTimeout(ackTimer);
+  ackTimer = setTimeout(() => {
+    if (!pending) return;
+    if (online) {
+      resendOnState = true;
+      sock.reconnect();
+    }
+    render();
+    watchAck();
+  }, ACK_TIMEOUT_MS);
+}
+
 function send() {
   const value = selection();
   if (value === null || !canScore()) return;
-  const seq = state.current.seq;
-  pending = { seq, value, ref: ++ref };
+  setPending({ seq: state.current.seq, value, ref: ++ref });
   whole = null;
   half = false;
-  if (!sock.send({ type: "score", seq, value, ref: pending.ref })) toast("Offline — will send when reconnected");
+  transmit();
+  if (!online) toast("Offline — will send when reconnected");
   buzz(25);
   render();
 }
@@ -198,18 +238,22 @@ function onState(s) {
     lastSeq = seq;
     whole = null;
     half = false;
-    if (pending && pending.seq !== seq) pending = null;
   }
-  if (pending && s.myScore === pending.value) pending = null;
+  const action = reconcile(pending, s.current && { seq: s.current.seq, phase: s.current.phase, myScore: s.myScore });
+  if (action === "done" || action === "drop") setPending(null);
+  else if (action === "resend" && resendOnState) {
+    resendOnState = false;
+    transmit();
+  }
   render();
 }
 
 function onMessage(msg) {
   if (msg.type === "ack" && pending && msg.ref === pending.ref) {
-    pending = null;
+    setPending(null);
     render();
   } else if (msg.type === "error") {
-    if (pending && msg.ref === pending.ref) pending = null;
+    if (pending && msg.ref === pending.ref) setPending(null);
     toast(msg.message);
     render();
   }
@@ -220,9 +264,9 @@ function onStatus(status) {
   $("#connDot").className = `dot ${status}`;
   $("#connText").textContent = status === "online" ? "Live" : status === "connecting" ? "Connecting" : "Offline";
   $("#offlineBanner").classList.toggle("hidden", status !== "offline");
-  if (online && pending && state?.current?.seq === pending.seq) {
-    sock.send({ type: "score", seq: pending.seq, value: pending.value, ref: pending.ref });
-  }
+  // A pending score is re-sent once the fresh state arrives after reconnecting.
+  if (!online) resendOnState = true;
+  render();
 }
 
 function render() {
@@ -252,7 +296,7 @@ function render() {
   if (!c) status = "No dive called";
   else if (pending) {
     value = fmtScore(pending.value);
-    status = online ? "Sending…" : "Queued — offline";
+    status = pendingStatus(pending, { online, now: Date.now() });
   } else if (sel !== null) {
     value = fmtScore(sel);
     status = mine === null ? "Tap SEND" : `Sent ${fmtScore(mine)} · tap UPDATE`;
@@ -291,8 +335,8 @@ function render() {
   }
 
   const btn = $("#sendBtn");
-  btn.disabled = !scoring || sel === null || !!pending;
-  btn.textContent = !scoring ? (revealed ? "LOCKED" : "WAITING") : sel === null ? (mine !== null ? "SENT ✓" : "SEND") : `${mine === null ? "SEND" : "UPDATE"} ${fmtScore(sel)}`;
+  btn.disabled = !scoring || sel === null;
+  btn.textContent = !scoring ? (revealed ? "LOCKED" : "WAITING") : sel === null ? (pending ? "SENDING…" : mine !== null ? "SENT ✓" : "SEND") : `${mine === null ? "SEND" : "UPDATE"} ${fmtScore(sel)}`;
 }
 
 function startPad() {
@@ -300,6 +344,12 @@ function startPad() {
   $("#pad").classList.remove("hidden");
   document.body.classList.add("judge");
   buildKeypad();
+  // A score sent just before a reload (judges often refresh when stuck) is re-sent if still needed.
+  const saved = restorable(store.get(pendingKey()), Date.now());
+  if (saved) {
+    pending = saved;
+    resendOnState = true;
+  }
   sock = liveSocket({ code, role: "judge", judge: creds.judge, key: creds.pin, onState, onMessage, onStatus });
 }
 
