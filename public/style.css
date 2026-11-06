@@ -453,7 +453,7 @@ details[open] > summary::before { content: "▾ "; }
 .judge-chip { padding: 8px 12px; gap: 10px; }
 .judge-chip .where { display: block; }
 .judge-chip.free { border-style: dashed; }
-.panel-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+.panel-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); margin-top: 12px; }
 .panel-card { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
 .panel-card.full { border-color: color-mix(in srgb, var(--good) 60%, var(--line)); }
 .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
@@ -501,3 +501,7 @@ details[open] > summary::before { content: "▾ "; }
 .open-plat { position: absolute; top: 12px; right: 14px; font-size: 20px; color: var(--muted); text-decoration: none; }
 .open-plat:hover { color: var(--text); }
 .board + .board { margin-top: 0; }
+.judge-chip .judge-pin { display: block; font-size: 13px; color: var(--muted); }
+.judge-chip .judge-pin b { color: var(--text); letter-spacing: .08em; }
+.judge-chip .judge-acts { display: flex; flex-direction: column; gap: 4px; margin-left: 6px; }
+.judge-chip .judge-acts .btn { min-height: 30px; padding: 2px 8px; font-size: 12px; }

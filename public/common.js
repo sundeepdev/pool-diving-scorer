@@ -78,9 +78,11 @@ export async function api(path, body) {
 // socket still looks open but nothing gets through) with a ping watchdog, and
 // reconnects when the tab becomes visible again or the device comes back online.
 //
-// Meets pass code/role/judge/key, which go in the URL. Competitions pass
-// `path` and a `hello()` function whose result is sent as the first message,
-// so credentials stay out of the URL. Call stop() to give up reconnecting.
+// Sign-in is the first message after connecting, never the URL, so PINs and
+// keys stay out of request logs. Meets pass code/role/judge/key and the hello
+// is built here; competitions pass `path` and a `hello()` function. A refused
+// sign-in ({ type: "error", fatal: true }) stops reconnecting before it reaches
+// onMessage. Call stop() to give up reconnecting yourself.
 // Tuned to feel instant at the pool: retries are cheap (while offline they
 // never reach the server) and a few judge phones pinging every 3 s cost
 // next to nothing. Battery matters less than a judge waiting.
@@ -105,14 +107,7 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
     }
     if (stopped) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
-    let url;
-    if (path) url = `${proto}://${location.host}${path}`;
-    else {
-      const q = new URLSearchParams({ role });
-      if (judge) q.set("judge", judge);
-      if (key) q.set("key", key);
-      url = `${proto}://${location.host}/api/meets/${code}/ws?${q}`;
-    }
+    const url = `${proto}://${location.host}${path || `/api/meets/${code}/ws`}`;
     const sock = (ws = new WebSocket(url));
     onStatus?.("connecting");
     // On bad Wi-Fi a connection attempt can hang for minutes without failing.
@@ -125,7 +120,7 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
       clearTimeout(connectGuard);
       retry = 0;
       lastSeen = Date.now();
-      if (hello) sock.send(JSON.stringify(hello()));
+      sock.send(JSON.stringify(hello ? hello() : { type: "hello", role, judge, key }));
       onStatus?.("online");
       // The server always answers a new connection with the state. If nothing
       // arrives, the link is dead even though it opened.
@@ -140,6 +135,13 @@ export function liveSocket({ code, role, judge, key, path, hello, onState, onMes
       lastSeen = Date.now();
       if (e.data === "pong") return;
       const msg = JSON.parse(e.data);
+      if (msg.type === "error" && msg.fatal) {
+        stopped = true;
+        clearTimeout(timer);
+        try {
+          sock.close();
+        } catch {}
+      }
       if (msg.type === "state") onState(msg.state);
       else onMessage?.(msg);
     };

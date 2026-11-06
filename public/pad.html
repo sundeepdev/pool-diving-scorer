@@ -15,23 +15,13 @@
   <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26"> Pool Diving Scorer</a>
   <section class="card" style="margin-top:20px">
     <h2>Judge sign-in</h2>
-    <p class="lead">Enter the competition code and the PIN from the referee.</p>
+    <p class="lead">Enter the competition code and your own judge PIN from the referee.</p>
     <form id="joinForm">
       <div class="field"><label for="joinCode">Competition code</label><input id="joinCode" class="mono" maxlength="6" autocapitalize="characters" autocomplete="off" required></div>
-      <div class="field"><label for="joinPin">Judge PIN</label><input id="joinPin" class="mono" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" required></div>
-      <button class="btn primary" style="width:100%;min-height:56px;font-size:18px">Continue</button>
+      <div class="field"><label for="joinPin">Your judge PIN</label><input id="joinPin" class="mono" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+      <button class="btn primary" style="width:100%;min-height:56px;font-size:18px">Start judging</button>
       <p class="error" id="joinErr"></p>
     </form>
-  </section>
-</div>
-
-<div id="pick" class="wrap hidden" style="max-width:560px;padding-top:32px">
-  <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26"> Pool Diving Scorer</a>
-  <section class="card" style="margin-top:20px">
-    <h2 id="pickTitle">Who are you?</h2>
-    <p class="lead">Tap your name.</p>
-    <div id="names" class="name-grid"></div>
-    <p class="muted small" style="margin-top:14px">Name missing? Ask the referee to add you on the setup page.</p>
   </section>
 </div>
 

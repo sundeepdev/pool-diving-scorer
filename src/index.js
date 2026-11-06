@@ -6,7 +6,7 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" },
   });
 }
 
@@ -14,6 +14,15 @@ function newCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(6));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
 }
+
+// Per-visitor rate limits. Missing bindings (older local setups) mean no limit.
+async function limited(limiter, request) {
+  if (!limiter) return false;
+  const key = request.headers.get("cf-connecting-ip") || "unknown";
+  const { success } = await limiter.limit({ key });
+  return !success;
+}
+const tooMany = () => json({ error: "Too many requests. Wait a minute and try again." }, 429);
 
 const meetStub = (env, code) => env.MEET.get(env.MEET.idFromName(code));
 const compStub = (env, code) => env.COMPETITION.get(env.COMPETITION.idFromName(code));
@@ -28,6 +37,12 @@ async function codeTaken(env, code) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    const creating = request.method === "POST" && (url.pathname === "/api/meets" || url.pathname === "/api/competitions");
+    if (creating && (await limited(env.CREATE_LIMIT, request))) return tooMany();
+    // Looking up a code (home page, scoreboards). Live connections aren't limited here.
+    const lookup = request.method === "GET" && /^\/api\/(meets|competitions)\/[A-Za-z0-9]{6}$/.test(url.pathname);
+    if (lookup && (await limited(env.LOOKUP_LIMIT, request))) return tooMany();
 
     if (url.pathname === "/api/meets" && request.method === "POST") {
       const cfg = await request.json().catch(() => ({}));

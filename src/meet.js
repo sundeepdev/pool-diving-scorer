@@ -14,6 +14,8 @@ import {
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_DIVERS = 100;
 const MAX_ROUNDS = 12;
+// Wrong judge PINs allowed per minute before judge sign-in pauses.
+const MAX_FAILURES = 10;
 
 function randomString(len, alphabet) {
   const bytes = crypto.getRandomValues(new Uint8Array(len));
@@ -36,6 +38,7 @@ class UserError extends Error {}
 export class Meet extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    this.failures = [];
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     ctx.blockConcurrencyWhile(async () => {
       this.state = (await ctx.storage.get("state")) ?? null;
@@ -57,7 +60,7 @@ export class Meet extends DurableObject {
       judges: 5,
       rounds: 6,
       autoReveal: true,
-      judgePin: randomString(4, "0123456789"),
+      judgePin: randomString(6, "0123456789"),
       adminKey: randomString(24, "abcdefghijkmnopqrstuvwxyz23456789"),
       createdAt: Date.now(),
       divers: [],
@@ -78,7 +81,15 @@ export class Meet extends DurableObject {
       return timingSafeEqual(secret, this.state.adminKey) ? { ok: true } : { ok: false, error: "Invalid referee key" };
     }
     if (role === "judge") {
-      if (!timingSafeEqual(secret, this.state.judgePin)) return { ok: false, error: "Wrong judge PIN" };
+      // Judge PINs are short, so limit guesses. Referee keys are 24 random
+      // characters and aren't throttled, so a PIN flood can't lock the referee out.
+      const now = Date.now();
+      this.failures = this.failures.filter((t) => now - t < 60_000);
+      if (this.failures.length >= MAX_FAILURES) return { ok: false, error: "Too many attempts. Wait a minute and try again." };
+      if (!timingSafeEqual(secret, this.state.judgePin)) {
+        this.failures.push(now);
+        return { ok: false, error: "Wrong judge PIN" };
+      }
       if (!(judge >= 1 && judge <= this.state.judges)) {
         return { ok: false, error: `Judge number must be 1–${this.state.judges}` };
       }
@@ -105,6 +116,15 @@ export class Meet extends DurableObject {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected WebSocket", { status: 426 });
 
     const url = new URL(request.url);
+    // Current pages connect without credentials and sign in with a "hello"
+    // message, so PINs and keys stay out of the URL (and request logs).
+    if (!url.searchParams.has("role")) {
+      const [client, server] = Object.values(new WebSocketPair());
+      this.ctx.acceptWebSocket(server);
+      server.serializeAttachment({ role: null });
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    // Older pages still open from before this change put them in the URL.
     const role = ["referee", "judge"].includes(url.searchParams.get("role")) ? url.searchParams.get("role") : "audience";
     const judge = Number(url.searchParams.get("judge")) || 0;
     const { ok, error } = await this.auth(role, judge, url.searchParams.get("key"));
@@ -128,6 +148,7 @@ export class Meet extends DurableObject {
     } catch {
       return;
     }
+    if (msg.type === "hello") return this.hello(ws, msg);
     const who = ws.deserializeAttachment() ?? {};
     try {
       if (who.role === "judge") await this.onJudgeMessage(ws, who.judge, msg);
@@ -140,6 +161,22 @@ export class Meet extends DurableObject {
       if (!(err instanceof UserError)) console.error(err);
       ws.send(JSON.stringify({ type: "error", message: err instanceof UserError ? err.message : "Server error", ref: msg.ref }));
     }
+  }
+
+  async hello(ws, msg) {
+    const role = ["referee", "judge"].includes(msg.role) ? msg.role : "audience";
+    const judge = Number(msg.judge) || 0;
+    const { ok, error } = await this.auth(role, judge, msg.key);
+    if (!ok) return ws.send(JSON.stringify({ type: "error", fatal: true, message: error }));
+    ws.serializeAttachment({ role, judge });
+    this.sendState(ws);
+    if (role === "judge") this.broadcast(["referee"]);
+  }
+
+  // Open sockets for a role, by attachment (sockets that signed in with a
+  // "hello" have no role tag).
+  sockets(role) {
+    return this.ctx.getWebSockets().filter((ws) => ws.readyState === WebSocket.OPEN && ws.deserializeAttachment()?.role === role);
   }
 
   async webSocketClose(ws, code) {
@@ -398,8 +435,7 @@ export class Meet extends DurableObject {
 
   connectedJudges() {
     const seats = new Set();
-    for (const ws of this.ctx.getWebSockets("judge")) {
-      if (ws.readyState !== WebSocket.OPEN) continue;
+    for (const ws of this.sockets("judge")) {
       const a = ws.deserializeAttachment();
       if (a?.judge) seats.add(a.judge);
     }
@@ -433,7 +469,7 @@ export class Meet extends DurableObject {
   broadcast(roles) {
     if (!this.state) return;
     const pub = this.publicView();
-    const sockets = roles ? roles.flatMap((r) => this.ctx.getWebSockets(r)) : this.ctx.getWebSockets();
+    const sockets = (roles || ["referee", "judge", "audience"]).flatMap((r) => this.sockets(r));
     for (const ws of sockets) this.sendState(ws, pub);
   }
 }

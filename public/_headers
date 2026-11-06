@@ -1,0 +1,14 @@
+# Security headers for every page and file (Cloudflare Workers static assets).
+# - Scripts, styles, images and live connections only from this site; inline
+#   style attributes are used for layout, inline scripts are not.
+# - The pages can't be shown inside another site's frame (clickjacking).
+# - No referrer, so a ?c= code in an address isn't passed on to other sites.
+# - Phones never offer camera, microphone or location to these pages.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
