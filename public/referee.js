@@ -310,7 +310,11 @@ async function start(k) {
     },
     onMessage: (m) => {
       if (m.type === "ack") setup.onAck(m.ref);
-      else if (m.type === "error" && !setup.onError(m)) toast(m.message);
+      else if (m.type === "error" && m.fatal) {
+        $("#app").hidden = true;
+        $("#tabs").hidden = true;
+        askForKey(m.message);
+      } else if (m.type === "error" && !setup.onError(m)) toast(m.message);
     },
     onStatus,
   });

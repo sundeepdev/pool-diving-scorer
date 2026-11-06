@@ -10,7 +10,14 @@ import { ACK_TIMEOUT_MS, pendingStatus, reconcile, restorable } from "/outbox.js
 
 const clean = (v) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 let code = clean(new URLSearchParams(location.search).get("c"));
+// Each judge has their own PIN, which also says who they are. A personal
+// invite link carries it in the #pin= part, which never reaches the server.
 let creds = code ? store.get(`pad:${code}`) : null; // { pin, judgeId }
+const hashPin = new URLSearchParams(location.hash.slice(1)).get("pin");
+if (code && hashPin) {
+  creds = { pin: hashPin.replace(/\D/g, "").slice(0, 6), judgeId: null };
+  history.replaceState(null, "", location.pathname + location.search);
+}
 let sock = null;
 let state = null;
 let online = false;
@@ -36,7 +43,7 @@ function toast(text, ms = 2500, ok = false) {
 }
 
 function show(id) {
-  for (const s of ["join", "pick", "pad"]) $(`#${s}`).classList.toggle("hidden", s !== id);
+  for (const s of ["join", "pad"]) $(`#${s}`).classList.toggle("hidden", s !== id);
 }
 
 // ---------- theme + screen wake lock ----------
@@ -81,28 +88,14 @@ $("#joinForm").addEventListener("submit", (e) => {
   connect();
 });
 
-function showPicker(msg) {
-  show("pick");
-  $("#pickTitle").textContent = `${msg.name}: who are you?`;
-  $("#names").innerHTML = msg.judges.length
-    ? msg.judges.map((j) => `<button class="btn name-btn" data-id="${esc(j.id)}">${esc(j.name)}</button>`).join("")
-    : `<p class="muted">No judges have been added yet.</p>`;
-}
-
-$("#names").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-id]");
-  if (!b) return;
-  creds.judgeId = b.dataset.id;
-  store.set(`pad:${code}`, creds);
-  sock.send({ type: "hello", role: "judge", ...creds });
-});
-
+// "Not you?": sign out of this pad so another judge can sign in with their PIN.
 $("#notMeBtn").addEventListener("click", () => {
-  creds = { pin: creds.pin, judgeId: null };
-  store.set(`pad:${code}`, creds);
+  store.remove(`pad:${code}`);
+  creds = null;
   state = null;
   lastSeat = null;
-  sock.send({ type: "hello", role: "judge", pin: creds.pin });
+  $("#joinPin").value = "";
+  showJoin();
 });
 
 // ---------- keypad ----------
@@ -353,10 +346,12 @@ function render() {
 
 function onState(s) {
   if (!s.me) {
-    // Removed from the judge list: pick again.
-    creds.judgeId = null;
+    store.remove(`pad:${code}`);
+    return showJoin("You're no longer on the judge list. Ask the referee.");
+  }
+  if (creds.judgeId !== s.me.id) {
+    creds.judgeId = s.me.id;
     store.set(`pad:${code}`, creds);
-    return sock.send({ type: "hello", role: "judge", pin: creds.pin });
   }
   state = s;
   const seq = s.current?.seq ?? null;
@@ -388,7 +383,7 @@ function connect() {
   state = null;
   sock = liveSocket({
     path: `/api/competitions/${code}/ws`,
-    hello: () => ({ type: "hello", role: "judge", ...creds }),
+    hello: () => ({ type: "hello", role: "judge", pin: creds.pin }),
     onStatus(st) {
       // A pending score is re-sent once signed in again (after the state arrives).
       if (st !== "online") resendOnState = true;
@@ -397,10 +392,7 @@ function connect() {
     },
     onState,
     onMessage(msg) {
-      if (msg.type === "chooseJudge") {
-        store.set(`pad:${code}`, creds);
-        showPicker(msg);
-      } else if (msg.type === "ack" && pending && msg.ref === pending.ref) {
+      if (msg.type === "ack" && pending && msg.ref === pending.ref) {
         setPending(null);
         if (state) render();
       } else if (msg.type === "replaced") {

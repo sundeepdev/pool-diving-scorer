@@ -57,7 +57,7 @@ For a competition where several groups of divers rotate across boards and platfo
    ```
    Then set each group's **rotation**, for example 2 dives on the 1m, then 2 on the 3m. DD fills in from the World Aquatics table for the height of each round, and changes if the rotation changes. Type a DD to override it.
 
-**Judge panels** (`/control?c=CODE`, linked from setup): share the judge link and PIN. Each judge opens `/pad?c=CODE` (or types the code under **Judge** on `/`), enters the PIN and taps their name. Pick a judge for each seat of each platform, or press **Fill empty seats**. A judge sits in one seat at a time, so picking them on another platform moves them, and their pad follows straight away. Each platform uses as many seats as the largest panel (3, 5 or 7) of the groups that dive there. One device per judge: signing in on a new phone replaces the old one. Sign-in pauses for a minute after 10 wrong PINs, and PINs and keys are sent after connecting, never in the URL.
+**Judge panels** (`/control?c=CODE`, linked from setup): **each judge has their own 6-digit PIN**, shown next to their name, which also tells the pad who they are. **Copy invite** gives a judge a link that signs them straight in (the PIN is after `#`, so it never reaches the server), or they open `/pad?c=CODE` (or type the code under **Judge** on `/`) and enter their PIN. **New PIN** replaces a leaked PIN and signs out the pad using the old one. Pick a judge for each seat of each platform, or press **Fill empty seats**. A judge sits in one seat at a time, so picking them on another platform moves them, and their pad follows straight away. Each platform uses as many seats as the largest panel (3, 5 or 7) of the groups that dive there. One device per judge: signing in on a new phone replaces the old one. Sign-in pauses for a minute after 10 wrong PINs, and PINs and keys are sent after connecting, never in the URL.
 
 **Live scoring** (`/control?c=CODE`, one tab per platform):
 
@@ -108,7 +108,13 @@ browser ──HTTP──▶ Worker (src/index.js) ──▶ static assets (publi
   * the **audience** sees only *which* judges have scored until the dive is revealed;
   * a **judge** sees their own score;
   * the **referee** sees everything.
-* Judges authenticate with the 4-digit meet PIN and the referee with a random 24-character key.
+* **Sign-in and limits:**
+  * The referee uses a random 24-character key. Meet judges share a 6-digit meet PIN (meets created before November 2026 kept 4 digits); in competitions each judge has their own 6-digit PIN.
+  * Credentials go in the first message after a live connection opens, never in a URL, so they stay out of request logs. Pages opened before this change still connect the old way until reloaded.
+  * After 10 wrong judge PINs in a minute, judge sign-in for that meet or competition pauses for a minute. Referee keys aren't limited, so a PIN flood can't lock the referee out.
+  * Each visitor can create 10 meets or competitions a minute and look up 120 codes a minute (Workers Rate Limiting, `wrangler.toml`).
+  * `public/_headers` sets a strict Content-Security-Policy (scripts only from this site), blocks framing, and sends no referrer.
+  * Spectators and platform referees never receive judge PINs or referee keys.
 * `public/importer.js` holds the CSV/spreadsheet import parser, unit-tested in `test/`.
 * **Poolside Wi-Fi:** `liveSocket` in `public/common.js` retries at most 2 s apart, gives up on a connection attempt after 5 s, and treats a connection as dead if it hears nothing for 8 s (pings every 3 s), which catches phones whose Wi-Fi dropped while the socket still looks open. Any tap or key press retries straight away. Timings are tuned to feel instant rather than to save battery. A judge's score stays pending until the server acks it. With no ack within 3 s the pad re-sends it, reconnecting first if the server has gone quiet, and keeps trying until it's confirmed or the dive has moved on. Pending scores are saved in the browser, so a reload re-sends them. The decisions live in `public/outbox.js`, unit-tested in `test/`.
 * `public/xlsx.js` builds the Excel download in the browser: a small dependency-free SpreadsheetML/ZIP writer plus the results workbook layout, unit-tested in `test/`.

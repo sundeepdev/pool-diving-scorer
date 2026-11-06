@@ -14,7 +14,6 @@ let key = null;
 let version = 0;
 let saved = null; // last setup from the server
 let draft = null;
-let judgePin = "";
 let dirty = false;
 let saving = false;
 let importParsed = null;
@@ -89,7 +88,8 @@ function renderShare() {
   $("#shareBox").innerHTML = `
     <div class="item"><label>Competition code</label><div class="big">${esc(code)}</div>
       <p class="muted small">Judges enter this code on the home page, or use the judge link on the <a href="/control?c=${esc(code)}">Judge panels</a> page.</p></div>
-    <div class="item"><label>Judge PIN</label><div class="big">${esc(judgePin)}</div></div>
+    <div class="item"><label>Judge PINs</label>
+      <p class="muted small">Each judge gets their own PIN once you save them. Find the PINs and personal invites on the <a href="/control?c=${esc(code)}">Run competition</a> page.</p></div>
     <div class="item"><label>Setup link · keep private</label>
       <div class="btns"><button class="btn small" id="copyRef">Copy setup link</button></div>
       <p class="muted small">Opens this setup on another device, for example a second referee's laptop.</p></div>`;
@@ -622,7 +622,7 @@ function renderAll() {
 // ---------- save ----------
 function load(view) {
   version = view.version;
-  judgePin = view.judgePin;
+
   saved = view.setup;
   draft = structuredClone(saved);
   for (const d of draft.divers) d.dives = d.dives.map((x) => x && { ...x });
@@ -660,7 +660,7 @@ $("#saveBtn").addEventListener("click", async () => {
 
 $("#discardBtn").addEventListener("click", async () => {
   if (!(await confirmDialog("Discard your unsaved changes?", { ok: "Discard", danger: true }))) return;
-  load({ version, judgePin, setup: saved });
+  load({ version, setup: saved });
 });
 
 window.addEventListener("beforeunload", (e) => {

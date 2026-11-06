@@ -89,18 +89,13 @@ function renderShare() {
     : "";
   $("#shareBox").innerHTML = `
     <div class="item"><label>Judge link</label><div class="link mono">${esc(url)}</div>
-      <div class="pin">PIN <span class="mono">${esc(state.judgePin)}</span></div>
-      <div class="btns"><button class="btn small primary" id="copyJudge">Copy judge invite</button>
-      ${navigator.share ? `<button class="btn small" id="shareJudge">Share…</button>` : ""}</div>
-      <p class="muted small">Or on the home page: Judge → code <b class="mono">${esc(code)}</b>.</p></div>
+      <p class="muted small">Each judge has their own PIN (below), which also tells the pad who they are. Send each judge their own invite, or read them their PIN. Or on the home page: Judge → code <b class="mono">${esc(code)}</b>.</p></div>
     <div class="item"><label>Audience scoreboard</label><div class="link mono">${esc(`${location.origin}/show?c=${code}`)}</div>
       <div class="btns"><button class="btn small" id="copyShow">Copy link</button>
       <a class="btn small" href="/show?c=${esc(code)}" target="_blank" rel="noopener">Open ↗</a></div>
       <p class="muted small">All platforms and standings. Pick one platform on the scoreboard for the screen by that pool. No sign-in needed.</p></div>${refLinks}`;
   $("#copyShow").addEventListener("click", () => copy(`${location.origin}/show?c=${code}`, "Scoreboard link copied"));
-  const text = `Judge pad for ${state.name}: ${url}  PIN ${state.judgePin}`;
-  $("#copyJudge").addEventListener("click", () => copy(text, "Judge invite copied"));
-  $("#shareJudge")?.addEventListener("click", () => navigator.share({ title: state.name, text }).catch(() => {}));
+
 }
 
 async function copy(text, done) {
@@ -111,6 +106,26 @@ async function copy(text, done) {
     prompt("Copy this", text);
   }
 }
+
+$("#judgeStatus").addEventListener("click", async (e) => {
+  const inv = e.target.closest("[data-invite]");
+  if (inv) {
+    const j = state.judges.find((x) => x.id === inv.dataset.invite);
+    const pin = state.judgePins[j.id];
+    // The PIN goes after #, which browsers never send to the server.
+    const link = `${location.origin}/pad?c=${code}#pin=${pin}`;
+    const text = `${j.name}, your judge pad for ${state.name}: ${link}\nCode ${code}, your PIN ${pin}. Please don't share it.`;
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) return navigator.share({ title: state.name, text }).catch(() => {});
+    return copy(text, `Invite for ${j.name} copied`);
+  }
+  const np = e.target.closest("[data-newpin]");
+  if (np) {
+    const j = state.judges.find((x) => x.id === np.dataset.newpin);
+    if (await confirmDialog(`Give ${j.name} a new PIN? Their pad is signed out until they use the new one.`, { ok: "New PIN", danger: true })) {
+      send({ type: "newPin", judgeId: j.id });
+    }
+  }
+});
 
 $("#shareBox").addEventListener("click", (e) => {
   const b = e.target.closest("[data-copyplat]");
@@ -127,8 +142,12 @@ function renderJudges() {
         .map((j) => {
           const at = seatOf(j.id);
           const where = at ? `${esc(platformName(at.platformId))} · Seat ${at.seat}${at.active ? "" : " (not used)"}` : "Not on a panel";
+          const pin = state.judgePins?.[j.id];
           return `<div class="chip judge-chip ${at ? "" : "free"}"><span class="dot ${online.has(j.id) ? "online" : ""}" title="${online.has(j.id) ? "Pad connected" : "Pad not connected"}"></span>
-            <span><b>${esc(j.name)}</b><span class="muted small where">${where}</span></span></div>`;
+            <span><b>${esc(j.name)}</b><span class="muted small where">${where}</span>
+            ${pin ? `<span class="judge-pin">PIN <b class="mono">${esc(pin)}</b></span>` : ""}</span>
+            ${pin ? `<span class="judge-acts"><button class="btn small" data-invite="${esc(j.id)}" title="Copy a link that signs ${esc(j.name)} in">Copy invite</button>
+              <button class="btn small" data-newpin="${esc(j.id)}" title="Give ${esc(j.name)} a new PIN and sign out the old one">New PIN</button></span>` : ""}</div>`;
         })
         .join("")
     : `<p class="muted empty-note">No judges yet. Add them on the <a href="/competition?c=${esc(code)}">setup page</a>.</p>`;

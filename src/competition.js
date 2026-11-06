@@ -29,9 +29,9 @@ function timingSafeEqual(a, b) {
 // and keys don't end up in request logs:
 //   referee: { type: "hello", role: "referee", key }  (head referee key, or a
 //            platform referee key that only controls that platform)
-//   judge:   { type: "hello", role: "judge", pin, judgeId? }
+//   judge:   { type: "hello", role: "judge", pin }  (each judge has their own
+//            6-digit PIN, which also says who they are)
 //   scoreboard: { type: "hello", role: "audience" }
-// A judge without judgeId gets the judge list to pick their name from.
 export class Competition extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -39,8 +39,14 @@ export class Competition extends DurableObject {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     ctx.blockConcurrencyWhile(async () => {
       this.state = (await ctx.storage.get("state")) ?? null;
-      // Competitions created before judge panels or live scoring existed.
-      if (this.state) this.tidy();
+      // Competitions created before judge panels, live scoring or personal
+      // PINs existed. Anything generated here (PINs, platform referee keys)
+      // must be saved now, or it changes the next time the object loads.
+      if (this.state) {
+        const before = JSON.stringify(this.state);
+        this.tidy();
+        if (JSON.stringify(this.state) !== before) await ctx.storage.put("state", this.state);
+      }
     });
   }
 
@@ -51,7 +57,6 @@ export class Competition extends DurableObject {
       code,
       createdAt: Date.now(),
       adminKey: randomString(24, "abcdefghijkmnopqrstuvwxyz23456789"),
-      judgePin: randomString(4, "0123456789"),
       version: 1,
       setup,
       panels: cleanPanels({}, setup),
@@ -71,6 +76,25 @@ export class Competition extends DurableObject {
     const keys = {};
     for (const p of st.setup.platforms) keys[p.id] = st.platformKeys[p.id] || randomString(24, "abcdefghijkmnopqrstuvwxyz23456789");
     st.platformKeys = keys;
+    // A personal PIN per judge: sharing one PIN let any judge sign in as another.
+    st.judgePins ||= {};
+    const pins = {};
+    const used = new Set();
+    for (const j of st.setup.judges) {
+      const pin = st.judgePins[j.id];
+      if (pin && !used.has(pin)) pins[j.id] = pin;
+      else pins[j.id] = this.newPin(used);
+      used.add(pins[j.id]);
+    }
+    st.judgePins = pins;
+    delete st.judgePin;
+  }
+
+  newPin(used = new Set(Object.values(this.state.judgePins || {}))) {
+    let pin;
+    do pin = randomString(6, "0123456789");
+    while (used.has(pin));
+    return pin;
   }
 
   async exists() {
@@ -118,8 +142,8 @@ export class Competition extends DurableObject {
   }
 
   view() {
-    const { code, version, judgePin, setup } = this.state;
-    return { code, version, judgePin, setup, warnings: setupWarnings(setup) };
+    const { code, version, setup } = this.state;
+    return { code, version, setup, warnings: setupWarnings(setup) };
   }
 
   async alarm() {
@@ -175,6 +199,21 @@ export class Competition extends DurableObject {
     const { setup } = st;
     const head = scope === "all";
     // Panels: head referee only.
+    if (msg.type === "newPin") {
+      if (!head) throw new SetupError("Only the head referee can change judge PINs");
+      const id = String(msg.judgeId);
+      if (!st.judgePins[id]) throw new SetupError("Unknown judge");
+      st.judgePins[id] = this.newPin();
+      // Sign out any pad still using the old PIN.
+      for (const ws of this.sockets("judge")) {
+        if (ws.deserializeAttachment()?.judgeId !== id) continue;
+        try {
+          ws.send(JSON.stringify({ type: "error", fatal: true, message: "Your PIN was changed. Ask the referee for the new one." }));
+          ws.close(4001, "PIN changed");
+        } catch {}
+      }
+      return;
+    }
     if (["seat", "fill", "clearPanels"].includes(msg.type)) {
       if (!head) throw new SetupError("Only the head referee can change judge panels");
       if (msg.type === "seat") st.panels = assignSeat(st.panels, setup, String(msg.platformId), Number(msg.seat), msg.judgeId ? String(msg.judgeId) : null);
@@ -243,15 +282,11 @@ export class Competition extends DurableObject {
     }
     if (msg.role === "judge") {
       if (this.throttled()) return ws.send(JSON.stringify({ type: "error", fatal: true, message: "Too many attempts. Wait a minute and try again." }));
-      if (!timingSafeEqual(msg.pin, this.state.judgePin)) return fail("Wrong judge PIN");
-      const judge = this.state.setup.judges.find((j) => j.id === msg.judgeId);
-      if (!judge) {
-        const was = ws.deserializeAttachment()?.role;
-        ws.serializeAttachment({ role: null });
-        ws.send(JSON.stringify({ type: "chooseJudge", name: this.state.setup.name, judges: this.state.setup.judges }));
-        if (was === "judge") this.broadcast(["referee"]);
-        return;
-      }
+      // Compare against every judge's PIN (no early exit) so timing says nothing.
+      let judgeId = null;
+      for (const [id, pin] of Object.entries(this.state.judgePins)) if (timingSafeEqual(msg.pin, pin)) judgeId = id;
+      const judge = judgeId && this.state.setup.judges.find((j) => j.id === judgeId);
+      if (!judge) return fail("Wrong judge PIN");
       // One device per judge: the newest sign-in wins.
       for (const other of this.sockets("judge")) {
         if (other !== ws && other.deserializeAttachment()?.judgeId === judge.id) {
@@ -294,7 +329,7 @@ export class Competition extends DurableObject {
 
   refereeView(scope) {
     const st = this.state;
-    const { code, judgePin, setup, panels } = st;
+    const { code, setup, panels } = st;
     const progress = {};
     for (const p of setup.platforms) {
       progress[p.id] = {};
@@ -303,7 +338,8 @@ export class Competition extends DurableObject {
     return {
       code,
       scope,
-      judgePin,
+      // Judges' PINs: head referee only.
+      judgePins: scope === "all" ? st.judgePins : undefined,
       name: setup.name,
       platforms: setup.platforms,
       judges: setup.judges,

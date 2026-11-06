@@ -24,5 +24,21 @@ new_sqlite_classes = ["Meet"]
 tag = "v2"
 new_sqlite_classes = ["Competition"]
 
+# Per-visitor limits (Workers Rate Limiting): creating meets/competitions, and
+# looking codes up. They stop one visitor using up the plan's daily requests.
+[[ratelimits]]
+name = "CREATE_LIMIT"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 10
+  period = 60
+
+[[ratelimits]]
+name = "LOOKUP_LIMIT"
+namespace_id = "1002"
+  [ratelimits.simple]
+  limit = 120
+  period = 60
+
 [observability]
 enabled = true

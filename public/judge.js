@@ -254,6 +254,10 @@ function onMessage(msg) {
   if (msg.type === "ack" && pending && msg.ref === pending.ref) {
     setPending(null);
     render();
+  } else if (msg.type === "error" && msg.fatal) {
+    // Sign-in refused (wrong PIN, or too many attempts): back to the sign-in form.
+    store.remove(`judge:${code}`);
+    showJoin(msg.message);
   } else if (msg.type === "error") {
     if (pending && msg.ref === pending.ref) setPending(null);
     toast(msg.message);
